@@ -14,9 +14,9 @@ export const RUNNING_GRACE_MS = 15 * MINUTE_MS;
 export const TOOL_GRACE_MS = 2 * HOUR_MS;
 export const PROJECT_TTL_MS = 7 * DAY_MS;
 export const CLAIM_MS = 5 * MINUTE_MS;
-export const INBOX_POLL_MS = 2 * SECOND_MS;
-export const INBOX_CHECK_MS = SECOND_MS;
-export const INBOX_PICKUP_MS = 10 * SECOND_MS;
+export const ANSWER_CHECK_MS = SECOND_MS;
+export const ANSWER_PICKUP_MS = 10 * SECOND_MS;
+export const ANSWER_TTL_MS = 10 * MINUTE_MS;
 export const POLL_MS = 15 * SECOND_MS;
 
 export const TAIL_BYTES = 1500000;
@@ -42,7 +42,7 @@ export const STORE_KEYS = {
   tickets: "tickets-v2",
   prs: "prs",
   ends: "transcript-ends-v1",
-  inbox: "inbox",
+  answers: "answers",
   projects: "projects-v1",
   isOpen: "isOpen",
 } as const;

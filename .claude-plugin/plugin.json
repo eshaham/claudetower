@@ -2,7 +2,9 @@
   "name": "claudtower",
   "version": "0.1.0",
   "description": "A panel in Claude Code Desktop that ranks your sessions by what they need from you",
-  "author": { "name": "Elad Shaham" },
+  "author": {
+    "name": "Elad Shaham"
+  },
   "types": "./types/index.d.ts",
   "userConfig": {
     "ticketPrefixes": {
@@ -11,5 +13,6 @@
       "description": "Optional. Comma-separated issue-key prefixes, e.g. ENG,OPS. Overrides the prefixes claudtower learns for each project.",
       "default": ""
     }
-  }
+  },
+  "license": "MIT"
 }

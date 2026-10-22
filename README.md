@@ -35,26 +35,53 @@ claudtower doesn't assume any tool. Once per project, and again every 7 days whi
 - `gh`, signed in, for PR details. Without it the PR rows are skipped.
 - For ticket priority, an MCP connector to the project's issue tracker. Without one, tickets show without priority.
 
+claudtower reads Claude Code Desktop's own session records and transcripts, opens sessions through its `claude://` links, and archives through its session tools. None of these are a public API, so a Desktop update can change them and break parts of the panel until claudtower catches up.
+
 ## Install
 
-Clone the repo, then load it from its folder in every session by adding this to `~/.claude/settings.json`:
+In a terminal:
+
+```bash
+claude plugin marketplace add eshaham/claudtower
+```
+
+```bash
+claude plugin install claudtower@claudtower
+```
+
+In Claude Code Desktop, the same is under **+** → **Plugins** → **Add marketplace**, then add the claudtower plugin. New sessions show the panel when they start.
+
+The panel is titled **claudtower**. Type `/tower` in any session to reopen it after closing it.
+
+### Settings
+
+`ticketPrefixes` is optional. Leave it empty to use the prefixes claudtower learns for each project, or list prefixes to use everywhere instead, in `~/.claude/settings.json`:
+
+```json
+{
+  "pluginConfigs": {
+    "claudtower": { "options": { "ticketPrefixes": "ENG,OPS" } }
+  }
+}
+```
+
+## Developing
+
+Clone the repo and load it from your clone in every session, so your edits apply without reinstalling. Uninstall the marketplace copy first, then add to `~/.claude/settings.json`:
 
 ```json
 {
   "env": {
     "CLAUDE_CODE_PLUGIN_DIRS": "/absolute/path/to/claudtower",
     "CLAUDE_CODE_PLUGIN_DIR_WATCH": "1"
-  },
-  "pluginConfigs": {
-    "claudtower": { "options": { "ticketPrefixes": "" } }
   }
 }
 ```
 
-`CLAUDE_CODE_PLUGIN_DIR_WATCH` makes running sessions reload the panel when its files change, so edits to the repo apply without restarting. New sessions pick it up when they start.
+`CLAUDE_CODE_PLUGIN_DIR_WATCH` makes running sessions reload the panel when its files change. Sessions read these settings when they start, so restart the Desktop app once after adding them.
 
-`ticketPrefixes` is optional. Leave it empty to use the prefixes claudtower learns for each project, or list prefixes to use everywhere instead.
+Check a change with `claude plugin validate .`.
 
-The repo also carries a marketplace file, so `claude plugin marketplace add <path or owner/repo>` and `claude plugin install claudtower@claudtower` work too. That route doesn't reload on edits.
+## License
 
-The panel is titled **claudtower**. Type `/tower` in any session to reopen it after closing it.
+MIT

@@ -5,8 +5,9 @@ import type { SessionAction, SessionCard } from "../../types";
 import { classify } from "./classify";
 import {
   ARCHIVE_SESSION,
-  INBOX_CHECK_MS,
-  INBOX_PICKUP_MS,
+  ANSWER_CHECK_MS,
+  ANSWER_PICKUP_MS,
+  ANSWER_TTL_MS,
   host,
   PANE,
   PANE_COLUMNS,
@@ -58,7 +59,10 @@ export const sending = atom(
   "",
 );
 
-type Inbox = Record<string, { id: string; text: string; at: number }>;
+type Answers = Record<string, { to: string; text: string; at: number }>;
+
+const ANSWER_MARKER = "claudtower-answer:";
+const ANSWER_PATTERN = /^claudtower-answer:([0-9a-f-]{36})$/m;
 
 type Stores = {
   verdicts: VerdictStore;
@@ -275,8 +279,20 @@ export function isPaneOpen($: EngineInterface) {
   return read($, isOpen);
 }
 
-async function readInbox($: EngineInterface) {
-  return ((await $.store.get(STORE_KEYS.inbox)) ?? {}) as Inbox;
+async function readAnswers($: EngineInterface) {
+  return ((await $.store.get(STORE_KEYS.answers)) ?? {}) as Answers;
+}
+
+async function writeAnswers($: EngineInterface, answers: Answers) {
+  const now = Date.now();
+  await $.store.set(
+    STORE_KEYS.answers,
+    Object.fromEntries(
+      Object.entries(answers).filter(
+        ([, answer]) => now - answer.at < ANSWER_TTL_MS,
+      ),
+    ),
+  );
 }
 
 export function readSending($: EngineInterface) {
@@ -288,43 +304,42 @@ export async function sendAction(
   card: SessionCard,
   action: SessionAction,
 ) {
-  const id = crypto.randomUUID();
+  const nonce = crypto.randomUUID();
   await update($, sending, () => card.id);
-  await $.store.set(STORE_KEYS.inbox, {
-    ...(await readInbox($)),
-    [card.cliId]: { id, text: action.message, at: Date.now() },
-  });
   try {
-    for (let waited = 0; waited < INBOX_PICKUP_MS; waited += INBOX_CHECK_MS) {
-      await $.clock.sleep(INBOX_CHECK_MS);
-      if ((await readInbox($))[card.cliId]?.id !== id) {
+    await writeAnswers($, {
+      ...(await readAnswers($)),
+      [nonce]: { to: card.cliId, text: action.message, at: Date.now() },
+    });
+    await $.session.send({
+      to: { sessionId: card.id },
+      text: `${ANSWER_MARKER}${nonce}\nYour answer from the claudtower board: ${action.message}`,
+    });
+    for (let waited = 0; waited < ANSWER_PICKUP_MS; waited += ANSWER_CHECK_MS) {
+      await $.clock.sleep(ANSWER_CHECK_MS);
+      if (!(await readAnswers($))[nonce]) {
         await load($);
         return;
       }
     }
-    const inbox = await readInbox($);
-    await $.store.set(
-      STORE_KEYS.inbox,
-      Object.fromEntries(
-        Object.entries(inbox).filter(([cliId]) => cliId !== card.cliId),
-      ),
-    );
-    $.ui.toast(`"${card.title}" isn't running, so it opened instead`);
-    await openSession($, card.id);
+    const { [nonce]: unclaimed, ...rest } = await readAnswers($);
+    await writeAnswers($, rest);
+    if (unclaimed) {
+      $.ui.toast(
+        `"${card.title}" didn't pick up the answer, so it opened instead`,
+      );
+      await openSession($, card.id);
+    }
   } finally {
     await update($, sending, (current) => (current === card.id ? "" : current));
   }
 }
 
-export async function checkInbox($: EngineInterface) {
-  const inbox = await readInbox($);
-  const message = inbox[host.selfCliId];
-  if (!message) return;
-  await $.store.set(
-    STORE_KEYS.inbox,
-    Object.fromEntries(
-      Object.entries(inbox).filter(([cliId]) => cliId !== host.selfCliId),
-    ),
-  );
-  await $.prompt.submit({ text: message.text, asUser: true });
+export async function takeAnswer($: EngineInterface, text: string) {
+  const nonce = text.match(ANSWER_PATTERN)?.[1];
+  if (!nonce) return null;
+  const { [nonce]: answer, ...rest } = await readAnswers($);
+  if (!answer || answer.to !== host.selfCliId) return null;
+  await writeAnswers($, rest);
+  return answer.text;
 }
