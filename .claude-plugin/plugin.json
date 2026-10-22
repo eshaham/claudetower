@@ -1,0 +1,15 @@
+{
+  "name": "claudtower",
+  "version": "0.1.0",
+  "description": "A panel in Claude Code Desktop that ranks your sessions by what they need from you",
+  "author": { "name": "Elad Shaham" },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "ticketPrefixes": {
+      "type": "string",
+      "title": "Ticket prefixes",
+      "description": "Comma-separated issue-key prefixes to find in session titles and branches, e.g. ENG,OPS",
+      "default": ""
+    }
+  }
+}
