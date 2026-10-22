@@ -12,9 +12,13 @@ const CardHit: ClientModule<Props, Props> = (props, surface) => {
   const { Box } = surface.elements;
   const previous = surface.state;
 
-  if (previous === undefined)
+  if (previous === undefined) {
+    let isPressed = false;
     surface.onPointer((event) => {
-      if (event.type !== "up" || event.button !== "left") return;
+      if (event.button !== "left") return;
+      if (event.type === "down") isPressed = true;
+      if (event.type !== "up" || !isPressed) return;
+      isPressed = false;
       const current = surface.state ?? props;
       const fromRight = surface.columns - event.x;
       const inCorner = event.y < CORNER_ROWS;
@@ -29,6 +33,7 @@ const CardHit: ClientModule<Props, Props> = (props, surface) => {
       const message: CardHitMessage = { kind, id: current.id };
       surface.post(message);
     });
+  }
   if (
     previous?.id !== props.id ||
     previous.canToggle !== props.canToggle ||

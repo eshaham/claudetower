@@ -11,7 +11,7 @@ import {
   setDraft,
   readPending,
   sendText,
-  sendAction,
+  startAction,
   togglePreview,
 } from "../lib/board";
 import {
@@ -235,7 +235,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
               key={`option-${card.id}-${index}`}
               variant={index === 0 ? "primary" : "secondary"}
               label={option.label}
-              onPress={() => sendAction($, card, option)}
+              onPress={() => startAction($, card, option)}
             />
           ))}
           {card.canArchive && (

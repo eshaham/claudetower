@@ -330,19 +330,14 @@ function clearPending($: EngineInterface, id: string) {
   );
 }
 
-export async function sendAction(
+async function sendAction(
   $: EngineInterface,
   card: SessionCard,
   action: SessionAction,
 ) {
   await markPending($, card.id);
   if (card.cliId === host.selfCliId) {
-    try {
-      await $.prompt.submit({ text: action.message, asUser: true });
-    } catch (error) {
-      await clearPending($, card.id);
-      throw error;
-    }
+    await $.prompt.submit({ text: action.message, asUser: true });
     return;
   }
   const path = inboxPathOf(card.cliId);
@@ -393,12 +388,19 @@ export function setDraft($: EngineInterface, text: string) {
   return update($, draft, () => text);
 }
 
-export async function sendText(
+export function startAction(
   $: EngineInterface,
   card: SessionCard,
-  text: string,
+  action: SessionAction,
 ) {
+  void sendAction($, card, action).catch(async (error: unknown) => {
+    log($, `could not send to "${card.title}": ${String(error)}`);
+    $.ui.toast(`Could not send to "${card.title}"`);
+    await clearPending($, card.id);
+  });
+}
+
+export function sendText($: EngineInterface, card: SessionCard, text: string) {
   const message = text.trim();
-  if (message === "") return;
-  await sendAction($, card, { label: message, message });
+  if (message !== "") startAction($, card, { label: message, message });
 }
