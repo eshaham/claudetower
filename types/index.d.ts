@@ -66,7 +66,10 @@ export type SessionCard = {
   score: number;
 };
 
-export type CardHitMessage = { kind: "open" | "toggle"; id: string };
+export type CardHitMessage = {
+  kind: "open" | "toggle" | "compose";
+  id: string;
+};
 
 declare module "claude-code" {
   interface PluginState {
@@ -75,6 +78,7 @@ declare module "claude-code" {
       isOpen: boolean;
       previewed: string;
       sending: string;
+      composing: string;
     };
   }
 }

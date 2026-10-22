@@ -85,20 +85,35 @@ export const setTicketPrefixes = (prefixes: string) => {
     .filter(isTicketPrefix);
 };
 
+const GH_CANDIDATES = [
+  "/opt/homebrew/bin/gh",
+  "/usr/local/bin/gh",
+  "/usr/bin/gh",
+];
+
+async function findGh($: EngineInterface) {
+  for (const path of GH_CANDIDATES) if (await $.fs.exists(path)) return path;
+  const found = await $.process.run(["/bin/sh", "-c", "command -v gh"]);
+  return found.exitCode === 0 ? found.stdout.trim() : "";
+}
+
 export async function discoverHost($: EngineInterface) {
-  const [home, gh, tools, selfCliId] = await Promise.all([
+  const [home, gh, selfCliId] = await Promise.all([
     $.process.run(["/usr/bin/printenv", "HOME"]),
-    $.process.run(["/bin/sh", "-lc", "command -v gh"]),
-    $.tool.list(),
+    findGh($),
     $.session.id(),
   ]);
   host.home = home.stdout.trim();
-  host.gh = gh.exitCode === 0 ? gh.stdout.trim() : "";
+  host.gh = gh;
   host.selfCliId = selfCliId;
-  host.tools = tools
+  if (!host.gh) log($, "gh not found; PR details are off");
+}
+
+export async function loadTools($: EngineInterface) {
+  if (host.tools.length > 0) return;
+  host.tools = (await $.tool.list())
     .filter((tool) => tool.mcp)
     .map((tool) => ({ name: tool.name, description: tool.description }));
-  if (!host.gh) log($, "gh not found; PR details are off");
 }
 
 export const sessionsRoot = () => `${host.home}/${SESSIONS_ROOT}`;

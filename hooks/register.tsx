@@ -2,6 +2,7 @@ import type { Register } from "claude-code";
 
 import type { CardHitMessage } from "../types";
 import {
+  followOtherSessions,
   isPaneOpen,
   load,
   openPane,
@@ -9,6 +10,7 @@ import {
   poll,
   setPaneOpen,
   takeAnswer,
+  toggleCompose,
   togglePreview,
 } from "./lib/board";
 import {
@@ -25,13 +27,17 @@ export const register: Register = (on, options) => {
   setTicketPrefixes(String(options.ticketPrefixes ?? ""));
 
   on("session.start", async ($, e, next) => {
-    await discoverHost($);
+    await followOtherSessions($);
     await $.command.register({
       name: "tower",
       description: "Open the claudtower session board",
     });
-    $.clock.every(POLL_MS, () => poll($));
-    void poll($);
+    void discoverHost($)
+      .then(() => {
+        $.clock.every(POLL_MS, () => poll($));
+        return poll($);
+      })
+      .catch((error: unknown) => log($, `could not start: ${String(error)}`));
 
     return next(e);
   });
@@ -58,6 +64,7 @@ export const register: Register = (on, options) => {
     const message = e.data as CardHitMessage;
     if (message.kind === "open") await openSession($, message.id);
     if (message.kind === "toggle") await togglePreview($, message.id);
+    if (message.kind === "compose") await toggleCompose($, message.id);
 
     return {};
   });

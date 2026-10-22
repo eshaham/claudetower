@@ -54,6 +54,10 @@ export const previewed = atom(
   { plugin: "claudtower", key: "previewed" } as const,
   "",
 );
+export const composing = atom(
+  { plugin: "claudtower", key: "composing" } as const,
+  "",
+);
 export const sending = atom(
   { plugin: "claudtower", key: "sending" } as const,
   "",
@@ -342,4 +346,23 @@ export async function takeAnswer($: EngineInterface, text: string) {
   if (!answer || answer.to !== host.selfCliId) return null;
   await writeAnswers($, rest);
   return answer.text;
+}
+
+export function readComposing($: EngineInterface) {
+  return read($, composing);
+}
+
+export function toggleCompose($: EngineInterface, id: string) {
+  return update($, composing, (current) => (current === id ? "" : id));
+}
+
+export async function sendText(
+  $: EngineInterface,
+  card: SessionCard,
+  text: string,
+) {
+  const message = text.trim();
+  if (message === "") return;
+  await update($, composing, (current) => (current === card.id ? "" : current));
+  await sendAction($, card, { label: message, message });
 }

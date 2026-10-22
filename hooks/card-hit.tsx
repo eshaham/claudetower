@@ -2,9 +2,10 @@ import type { ClientModule } from "claude-code";
 
 import type { CardHitMessage } from "../types";
 
-type Props = { id: string; canToggle: boolean };
+type Props = { id: string; canToggle: boolean; canCompose: boolean };
 
-const CORNER_COLUMNS = 4;
+const TOGGLE_COLUMNS = 3;
+const COMPOSE_COLUMNS = 4;
 const CORNER_ROWS = 2;
 
 const CardHit: ClientModule<Props, Props> = (props, surface) => {
@@ -15,17 +16,24 @@ const CardHit: ClientModule<Props, Props> = (props, surface) => {
     surface.onPointer((event) => {
       if (event.type !== "up" || event.button !== "left") return;
       const current = surface.state ?? props;
-      const isCorner =
-        current.canToggle &&
-        event.x >= surface.columns - CORNER_COLUMNS &&
-        event.y < CORNER_ROWS;
-      const message: CardHitMessage = {
-        kind: isCorner ? "toggle" : "open",
-        id: current.id,
-      };
+      const fromRight = surface.columns - event.x;
+      const inCorner = event.y < CORNER_ROWS;
+      const kind: CardHitMessage["kind"] =
+        inCorner && current.canToggle && fromRight <= TOGGLE_COLUMNS
+          ? "toggle"
+          : inCorner &&
+              current.canCompose &&
+              fromRight <= TOGGLE_COLUMNS + COMPOSE_COLUMNS
+            ? "compose"
+            : "open";
+      const message: CardHitMessage = { kind, id: current.id };
       surface.post(message);
     });
-  if (previous?.id !== props.id || previous.canToggle !== props.canToggle)
+  if (
+    previous?.id !== props.id ||
+    previous.canToggle !== props.canToggle ||
+    previous.canCompose !== props.canCompose
+  )
     surface.setState(props);
 
   return <Box width="100%" height="100%" />;

@@ -38,3 +38,8 @@ export const PR_STYLES: Record<
 
 export const prIcon = (state: PrState) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="${PR_ICON_SIZE}" height="${PR_ICON_SIZE}"><path fill="${PR_STYLES[state].color}" d="${PR_STYLES[state].path}"/></svg>`;
+
+export const PENCIL_SIZE = 18;
+
+export const pencil = (isActive: boolean) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${PENCIL_SIZE}" height="${PENCIL_SIZE}"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z M13.5 6.5l4 4" fill="none" stroke="${isActive ? "#d97757" : CHEVRON_COLOR}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;

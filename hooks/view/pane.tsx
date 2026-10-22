@@ -6,7 +6,9 @@ import {
   readCards,
   openSession,
   readPreviewed,
+  readComposing,
   readSending,
+  sendText,
   sendAction,
   togglePreview,
 } from "../lib/board";
@@ -35,9 +37,11 @@ import { isOpenPr } from "../lib/enrich";
 import {
   BUBBLE_BORDER,
   CHEVRON_SIZE,
+  PENCIL_SIZE,
   PR_ICON_SIZE,
   PR_STYLES,
   chevron,
+  pencil,
   prIcon,
 } from "./icons";
 
@@ -79,11 +83,15 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
   const { Box, Text, Button, Markdown } = resolved;
   const Svg = "Svg" in resolved ? resolved.Svg : null;
   const Client = "Client" in resolved ? resolved.Client : null;
-  const [list, previewedId, sendingId] = await Promise.all([
+  const [list, previewedId, sendingId, composingId] = await Promise.all([
     readCards($),
     readPreviewed($),
     readSending($),
+    readComposing($),
   ]);
+  const Input = "Input" in resolved ? resolved.Input : null;
+  const canCompose = (card: SessionCard) =>
+    card.cliId !== host.selfCliId && sendingId !== card.id;
   const width = e.props.bodyColumns || e.viewport?.columns || PANE_COLUMNS;
   const isSelf = (card: SessionCard) => card.cliId === host.selfCliId;
   const self = list.find(isSelf);
@@ -255,7 +263,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
       paddingX={1}
     >
       <Box key={`body-${card.id}`} position="relative" flexDirection="column">
-        <Box paddingRight={3}>
+        <Box paddingRight={7}>
           <Text weight="semibold" wrap="wrap">
             {card.title}
           </Text>
@@ -265,6 +273,16 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
         </Text>
         {prLines(card)}
         {reason(card)}
+        {Svg && canCompose(card) && (
+          <Box position="absolute" top={0} right={3}>
+            <Svg
+              source={pencil(composingId === card.id)}
+              alt="Write to this session"
+              width={PENCIL_SIZE}
+              height={PENCIL_SIZE}
+            />
+          </Box>
+        )}
         {Svg && hasPreview(card) && (
           <Box position="absolute" top={0} right={0}>
             <Svg
@@ -280,7 +298,11 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
             <Client
               key={`hit-${card.id}`}
               module="../card-hit.tsx"
-              props={{ id: card.id, canToggle: hasPreview(card) }}
+              props={{
+                id: card.id,
+                canToggle: hasPreview(card),
+                canCompose: canCompose(card),
+              }}
               width="100%"
               height="100%"
             />
@@ -289,6 +311,17 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
       </Box>
       {preview(card)}
       {actions(card)}
+      {composingId === card.id && Input && (
+        <Box marginTop={1}>
+          <Input
+            key={`compose-${card.id}`}
+            placeholder="Write to this session…"
+            submitLabel="Send"
+            autoFocus
+            onSubmit={(text) => sendText($, card, text)}
+          />
+        </Box>
+      )}
       {previewedId === card.id && (
         <Box marginTop={1} flexDirection="row" justifyContent="center">
           <Button

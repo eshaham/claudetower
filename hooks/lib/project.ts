@@ -8,6 +8,7 @@ import {
   host,
   isMcpToolName,
   isTicketPrefix,
+  loadTools,
   log,
 } from "./config";
 import type { McpToolName } from "./config";
@@ -61,6 +62,7 @@ async function run($: EngineInterface, argv: string[]) {
 }
 
 async function factsOf($: EngineInterface, root: string, titles: string[]) {
+  await loadTools($);
   const [remote, branches, entries, workflows, readme, instructions] =
     await Promise.all([
       run($, ["git", "-C", root, "remote", "get-url", "origin"]),
