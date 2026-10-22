@@ -186,6 +186,22 @@ async function readNewVerdicts(
   return fresh;
 }
 
+const runningInBackground = new Set<string>();
+
+function inBackground(
+  $: EngineInterface,
+  name: string,
+  work: () => Promise<void>,
+) {
+  if (runningInBackground.has(name)) return;
+  runningInBackground.add(name);
+  void work()
+    .catch((error: unknown) =>
+      log($, `${name} refresh failed: ${String(error)}`),
+    )
+    .finally(() => runningInBackground.delete(name));
+}
+
 export async function load($: EngineInterface) {
   if (isLoading) return;
   isLoading = true;
@@ -193,8 +209,8 @@ export async function load($: EngineInterface) {
     const now = Date.now();
     const live = await loadLive($, now);
     const { stores, enriched } = await build($, live, now);
-    const [, , , fresh] = await Promise.all([
-      refreshProjects($, live),
+    inBackground($, "projects", () => refreshProjects($, live));
+    inBackground($, "tickets", () =>
       refreshTickets(
         $,
         enriched.flatMap((one) =>
@@ -203,9 +219,9 @@ export async function load($: EngineInterface) {
             : [],
         ),
       ),
-      refreshPrs($, live),
-      readNewVerdicts($, enriched, stores.verdicts),
-    ]);
+    );
+    inBackground($, "prs", () => refreshPrs($, live));
+    const fresh = await readNewVerdicts($, enriched, stores.verdicts);
     if (Object.keys(fresh).length > 0)
       await writeVerdicts($, fresh, new Set(live.map(({ s }) => s.sessionId)));
     await build($, live, now);
@@ -296,6 +312,10 @@ export async function sendAction(
   card: SessionCard,
   action: SessionAction,
 ) {
+  if (card.cliId === host.selfCliId) {
+    await $.prompt.submit({ text: action.message, asUser: true });
+    return;
+  }
   const path = inboxPathOf(card.cliId);
   await update($, sending, () => card.id);
   try {

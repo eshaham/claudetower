@@ -2,6 +2,7 @@ import type { EngineInterface } from "claude-code";
 
 import type { PrBadge, PrState, TicketInfo } from "../../types";
 import {
+  GH_TIMEOUT_MS,
   PR_LOOKUPS_PER_POLL,
   PR_TTL_MS,
   STORE_KEYS,
@@ -140,23 +141,37 @@ export async function refreshTickets(
       }),
     ),
   );
+  const current = await readTickets($);
+  const retryLater = Object.fromEntries(
+    stale.map(({ id }) => [
+      id,
+      {
+        ...(current[id] ?? { priority: 0, status: "", isOpen: true }),
+        checkedAt: Date.now(),
+      },
+    ]),
+  );
   await $.store.set(STORE_KEYS.tickets, {
-    ...(await readTickets($)),
+    ...current,
+    ...retryLater,
     ...Object.fromEntries(found.filter((entry) => entry !== null)),
   });
 }
 
 async function lookUpPr($: EngineInterface, pr: SessionPr) {
-  const viewed = await $.process.run([
-    host.gh,
-    "pr",
-    "view",
-    String(pr.prNumber),
-    "--repo",
-    pr.repo ?? "",
-    "--json",
-    "state,isDraft,additions,deletions,statusCheckRollup",
-  ]);
+  const viewed = await $.process.run(
+    [
+      host.gh,
+      "pr",
+      "view",
+      String(pr.prNumber),
+      "--repo",
+      pr.repo ?? "",
+      "--json",
+      "state,isDraft,additions,deletions,statusCheckRollup",
+    ],
+    { timeoutMs: GH_TIMEOUT_MS },
+  );
   if (viewed.exitCode !== 0) {
     log($, `could not look up PR ${prKey(pr)}: ${viewed.stderr.trim()}`);
     return null;
@@ -211,8 +226,26 @@ export async function refreshPrs($: EngineInterface, live: Live[]) {
       }),
     ),
   );
+  const current = await readPrs($);
+  const retryLater = Object.fromEntries(
+    stale.map((pr) => [
+      prKey(pr),
+      {
+        ...(current[prKey(pr)] ?? {
+          number: pr.prNumber ?? 0,
+          state: prStateOf(pr.state),
+          additions: 0,
+          deletions: 0,
+          failing: 0,
+          pending: 0,
+        }),
+        checkedAt: Date.now(),
+      },
+    ]),
+  );
   await $.store.set(STORE_KEYS.prs, {
-    ...(await readPrs($)),
+    ...current,
+    ...retryLater,
     ...Object.fromEntries(found.filter((entry) => entry !== null)),
   });
 }

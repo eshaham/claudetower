@@ -50,6 +50,7 @@ export const TICKET_TTL_MS = 30 * MINUTE_MS;
 export const TICKET_LOOKUPS_PER_POLL = 4;
 export const PR_TTL_MS = 5 * MINUTE_MS;
 export const PR_LOOKUPS_PER_POLL = 4;
+export const GH_TIMEOUT_MS = 15 * SECOND_MS;
 
 export const ARCHIVE_SESSION = "mcp__ccd_session_mgmt__archive_session";
 
@@ -71,7 +72,7 @@ export const host: {
 } = { home: "", gh: "", selfCliId: "", tools: [], ticketPrefixOverride: [] };
 
 export function log($: EngineInterface, message: string) {
-  $.ui.log(`${PLUGIN}: ${message}`);
+  $.ui.log(`${PLUGIN}: ${message}`, { to: "debug" });
 }
 
 export const isTicketPrefix = (prefix: string) =>
