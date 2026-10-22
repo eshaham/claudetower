@@ -53,6 +53,7 @@ export const PR_TTL_MS = 5 * MINUTE_MS;
 export const PR_LOOKUPS_PER_POLL = 4;
 
 export const ARCHIVE_SESSION = "mcp__ccd_session_mgmt__archive_session";
+export const SEND_MESSAGE = "mcp__ccd_session_mgmt__send_message";
 
 const SESSIONS_ROOT = "Library/Application Support/Claude/claude-code-sessions";
 

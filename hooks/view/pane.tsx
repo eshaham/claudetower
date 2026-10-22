@@ -7,6 +7,8 @@ import {
   openSession,
   readPreviewed,
   readComposing,
+  readDraft,
+  setDraft,
   readSending,
   sendText,
   sendAction,
@@ -75,6 +77,20 @@ const factsLine = (card: SessionCard) =>
     .filter(Boolean)
     .join(" · ");
 
+const COMPOSER_MAX_ROWS = 8;
+const COMPOSER_CHROME_COLUMNS = 10;
+
+const composerRows = (text: string, width: number) => {
+  const perRow = Math.max(20, width - COMPOSER_CHROME_COLUMNS);
+  const rows = text
+    .split("\n")
+    .reduce(
+      (total, line) => total + Math.max(1, Math.ceil(line.length / perRow)),
+      0,
+    );
+  return Math.min(COMPOSER_MAX_ROWS, Math.max(1, rows));
+};
+
 const hasPreview = (card: SessionCard) =>
   card.lastAsk !== "" || card.lastReply !== "";
 
@@ -83,12 +99,14 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
   const { Box, Text, Button, Markdown } = resolved;
   const Svg = "Svg" in resolved ? resolved.Svg : null;
   const Client = "Client" in resolved ? resolved.Client : null;
-  const [list, previewedId, sendingId, composingId] = await Promise.all([
-    readCards($),
-    readPreviewed($),
-    readSending($),
-    readComposing($),
-  ]);
+  const [list, previewedId, sendingId, composingId, draftText] =
+    await Promise.all([
+      readCards($),
+      readPreviewed($),
+      readSending($),
+      readComposing($),
+      readDraft($),
+    ]);
   const Input = "Input" in resolved ? resolved.Input : null;
   const canCompose = (card: SessionCard) =>
     card.cliId !== host.selfCliId && sendingId !== card.id;
@@ -312,12 +330,15 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
       {preview(card)}
       {actions(card)}
       {composingId === card.id && Input && (
-        <Box marginTop={1}>
+        <Box marginTop={1} width="100%" flexDirection="column">
           <Input
             key={`compose-${card.id}`}
             placeholder="Write to this session…"
-            submitLabel="Send"
+            submitLabel="↵"
+            rows={composerRows(draftText, width)}
+            value={draftText}
             autoFocus
+            onInput={(text) => setDraft($, text)}
             onSubmit={(text) => sendText($, card, text)}
           />
         </Box>

@@ -79,6 +79,7 @@ declare module "claude-code" {
       previewed: string;
       sending: string;
       composing: string;
+      draft: string;
     };
   }
 }

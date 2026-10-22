@@ -5,6 +5,7 @@ import type { SessionAction, SessionCard } from "../../types";
 import { classify } from "./classify";
 import {
   ARCHIVE_SESSION,
+  SEND_MESSAGE,
   ANSWER_CHECK_MS,
   ANSWER_PICKUP_MS,
   ANSWER_TTL_MS,
@@ -54,6 +55,7 @@ export const previewed = atom(
   { plugin: "claudtower", key: "previewed" } as const,
   "",
 );
+export const draft = atom({ plugin: "claudtower", key: "draft" } as const, "");
 export const composing = atom(
   { plugin: "claudtower", key: "composing" } as const,
   "",
@@ -315,10 +317,20 @@ export async function sendAction(
       ...(await readAnswers($)),
       [nonce]: { to: card.cliId, text: action.message, at: Date.now() },
     });
-    await $.session.send({
-      to: { sessionId: card.id },
-      text: `${ANSWER_MARKER}${nonce}\nYour answer from the claudtower board: ${action.message}`,
-    });
+    const text = `${ANSWER_MARKER}${nonce}\nYour answer from the claudtower board: ${action.message}`;
+    const sent = await $.session.send({ to: { sessionId: card.cliId }, text });
+    if (!sent.isDelivered) {
+      const woken = await $.tool.call({
+        tool: SEND_MESSAGE,
+        session_id: card.id,
+        message: text,
+      });
+      if (woken.deny !== undefined || woken.isError)
+        log(
+          $,
+          `could not deliver to "${card.title}": ${sent.reason}; ${woken.deny ?? woken.text ?? ""}`,
+        );
+    }
     for (let waited = 0; waited < ANSWER_PICKUP_MS; waited += ANSWER_CHECK_MS) {
       await $.clock.sleep(ANSWER_CHECK_MS);
       if (!(await readAnswers($))[nonce]) {
@@ -352,8 +364,17 @@ export function readComposing($: EngineInterface) {
   return read($, composing);
 }
 
-export function toggleCompose($: EngineInterface, id: string) {
-  return update($, composing, (current) => (current === id ? "" : id));
+export async function toggleCompose($: EngineInterface, id: string) {
+  await update($, draft, () => "");
+  await update($, composing, (current) => (current === id ? "" : id));
+}
+
+export function readDraft($: EngineInterface) {
+  return read($, draft);
+}
+
+export function setDraft($: EngineInterface, text: string) {
+  return update($, draft, () => text);
 }
 
 export async function sendText(
@@ -363,6 +384,7 @@ export async function sendText(
 ) {
   const message = text.trim();
   if (message === "") return;
+  await update($, draft, () => "");
   await update($, composing, (current) => (current === card.id ? "" : current));
   await sendAction($, card, { label: message, message });
 }
