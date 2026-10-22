@@ -6,6 +6,8 @@ import {
   readCards,
   openSession,
   readPreviewed,
+  readSending,
+  sendAction,
   togglePreview,
 } from "../lib/board";
 import {
@@ -77,9 +79,10 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
   const { Box, Text, Button, Markdown } = resolved;
   const Svg = "Svg" in resolved ? resolved.Svg : null;
   const Client = "Client" in resolved ? resolved.Client : null;
-  const [list, previewedId] = await Promise.all([
+  const [list, previewedId, sendingId] = await Promise.all([
     readCards($),
     readPreviewed($),
+    readSending($),
   ]);
   const width = e.props.bodyColumns || e.viewport?.columns || PANE_COLUMNS;
   const isSelf = (card: SessionCard) => card.cliId === host.selfCliId;
@@ -183,6 +186,12 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
   };
 
   const actions = (card: SessionCard) => {
+    if (sendingId === card.id)
+      return (
+        <Box marginTop={1}>
+          <Text dimColor>Sending…</Text>
+        </Box>
+      );
     const options = card.isRunning ? [] : card.options;
     if (options.length === 0 && !card.canArchive) return null;
     return (
@@ -197,8 +206,8 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
             <Button
               key={`option-${card.id}-${index}`}
               variant={index === 0 ? "primary" : "secondary"}
-              label={option}
-              onPress={() => openSession($, card.id)}
+              label={option.label}
+              onPress={() => sendAction($, card, option)}
             />
           ))}
           {card.canArchive && (
@@ -281,7 +290,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
       {preview(card)}
       {actions(card)}
       {previewedId === card.id && (
-        <Box marginTop={1}>
+        <Box marginTop={1} flexDirection="row" justifyContent="flex-end">
           <Button
             key={`collapse-${card.id}`}
             plain

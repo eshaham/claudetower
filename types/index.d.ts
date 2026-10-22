@@ -31,6 +31,8 @@ export type PrBadge = {
   pending: number;
 };
 
+export type SessionAction = { label: string; message: string };
+
 export type LaneId =
   | "answer"
   | "act"
@@ -53,7 +55,7 @@ export type SessionCard = {
   lastAskAgoMs: number;
   lastReply: string;
   question: string;
-  options: string[];
+  options: SessionAction[];
   isRunning: boolean;
   isScheduled: boolean;
   ageMs: number;
@@ -72,6 +74,7 @@ declare module "claude-code" {
       cards: SessionCard[];
       isOpen: boolean;
       previewed: string;
+      sending: string;
     };
   }
 }

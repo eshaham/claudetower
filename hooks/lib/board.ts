@@ -1,10 +1,13 @@
 import { atom, read, update } from "claude-code";
 import type { EngineInterface } from "claude-code";
 
-import type { SessionCard } from "../../types";
+import type { SessionAction, SessionCard } from "../../types";
 import { classify } from "./classify";
 import {
   ARCHIVE_SESSION,
+  INBOX_CHECK_MS,
+  INBOX_PICKUP_MS,
+  host,
   PANE,
   PANE_COLUMNS,
   PREVIEW_REPLY_CHARS,
@@ -50,6 +53,12 @@ export const previewed = atom(
   { plugin: "claudtower", key: "previewed" } as const,
   "",
 );
+export const sending = atom(
+  { plugin: "claudtower", key: "sending" } as const,
+  "",
+);
+
+type Inbox = Record<string, { id: string; text: string; at: number }>;
 
 type Stores = {
   verdicts: VerdictStore;
@@ -264,4 +273,58 @@ export function readPreviewed($: EngineInterface) {
 
 export function isPaneOpen($: EngineInterface) {
   return read($, isOpen);
+}
+
+async function readInbox($: EngineInterface) {
+  return ((await $.store.get(STORE_KEYS.inbox)) ?? {}) as Inbox;
+}
+
+export function readSending($: EngineInterface) {
+  return read($, sending);
+}
+
+export async function sendAction(
+  $: EngineInterface,
+  card: SessionCard,
+  action: SessionAction,
+) {
+  const id = crypto.randomUUID();
+  await update($, sending, () => card.id);
+  await $.store.set(STORE_KEYS.inbox, {
+    ...(await readInbox($)),
+    [card.cliId]: { id, text: action.message, at: Date.now() },
+  });
+  try {
+    for (let waited = 0; waited < INBOX_PICKUP_MS; waited += INBOX_CHECK_MS) {
+      await $.clock.sleep(INBOX_CHECK_MS);
+      if ((await readInbox($))[card.cliId]?.id !== id) {
+        await load($);
+        return;
+      }
+    }
+    const inbox = await readInbox($);
+    await $.store.set(
+      STORE_KEYS.inbox,
+      Object.fromEntries(
+        Object.entries(inbox).filter(([cliId]) => cliId !== card.cliId),
+      ),
+    );
+    $.ui.toast(`"${card.title}" isn't running, so it opened instead`);
+    await openSession($, card.id);
+  } finally {
+    await update($, sending, (current) => (current === card.id ? "" : current));
+  }
+}
+
+export async function checkInbox($: EngineInterface) {
+  const inbox = await readInbox($);
+  const message = inbox[host.selfCliId];
+  if (!message) return;
+  await $.store.set(
+    STORE_KEYS.inbox,
+    Object.fromEntries(
+      Object.entries(inbox).filter(([cliId]) => cliId !== host.selfCliId),
+    ),
+  );
+  await $.prompt.submit({ text: message.text, asUser: true });
 }

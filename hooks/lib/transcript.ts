@@ -1,7 +1,9 @@
 import type { EngineInterface } from "claude-code";
 
+import type { SessionAction } from "../../types";
 import {
   LAST_TEXT_CHARS,
+  STORE_KEYS,
   LOOKBACK_MS,
   PROMPT_CHARS,
   RUNNING_GRACE_MS,
@@ -38,7 +40,7 @@ export type TranscriptEnd = {
   promptAt: number;
   lastText: string;
   question: string;
-  options: string[];
+  options: SessionAction[];
   uncommittedFiles: number;
 };
 
@@ -56,7 +58,7 @@ type ContentBlock = {
   name?: string;
   input?: {
     ask?: string;
-    actions?: { label?: string }[];
+    actions?: { label?: string; message?: string }[];
     questions?: { question?: string; options?: { label?: string }[] }[];
   };
 };
@@ -144,9 +146,16 @@ const suggestedActionsOf = (turn: TranscriptLine[]) => {
   const asked = input?.questions?.[0];
   return {
     question: input?.ask ?? asked?.question ?? "",
-    options: (input?.actions ?? asked?.options ?? [])
-      .map((option) => option.label ?? "")
-      .filter(Boolean),
+    options: [
+      ...(input?.actions ?? []).map((action) => ({
+        label: action.label ?? "",
+        message: action.message || action.label || "",
+      })),
+      ...(asked?.options ?? []).map((option) => ({
+        label: option.label ?? "",
+        message: option.label ?? "",
+      })),
+    ].filter((action) => action.label !== ""),
   };
 };
 
@@ -330,19 +339,25 @@ const latestRunsOnly = (live: Live[]) => {
   );
 };
 
+type EndStore = Record<string, TranscriptEnd>;
+
 async function transcriptEndOf(
   $: EngineInterface,
   s: SessionFile,
   now: number,
+  shared: EndStore,
 ) {
   const path = transcriptPath(s);
   if (!(await $.fs.exists(path))) return null;
   const stat = await $.fs.stat(path);
   if (now - stat.mtimeMs > LOOKBACK_MS) return null;
-  const cached = transcriptEnds.get(path);
+  const cached = transcriptEnds.get(path) ?? shared[path];
   const isIdleRun =
     cached && !cached.isStopped && now - cached.mtimeMs > RUNNING_GRACE_MS;
-  if (cached?.mtimeMs === stat.mtimeMs && !isIdleRun) return cached;
+  if (cached?.mtimeMs === stat.mtimeMs && !isIdleRun) {
+    transcriptEnds.set(path, cached);
+    return cached;
+  }
   try {
     const end = await readTranscriptEnd($, s, path, stat);
     transcriptEnds.set(path, end);
@@ -353,9 +368,35 @@ async function transcriptEndOf(
   }
 }
 
+async function shareEnds(
+  $: EngineInterface,
+  shared: EndStore,
+  paths: string[],
+) {
+  const mine = Object.fromEntries(
+    paths.flatMap((path) => {
+      const end = transcriptEnds.get(path);
+      return end ? [[path, end] as const] : [];
+    }),
+  );
+  const changed = paths.some(
+    (path) => mine[path] && mine[path].mtimeMs !== shared[path]?.mtimeMs,
+  );
+  if (changed || Object.keys(shared).some((path) => !paths.includes(path)))
+    await $.store.set(STORE_KEYS.ends, mine);
+}
+
 export async function loadLive($: EngineInterface, now: number) {
   const files = await loadSessionFiles($, now);
-  const ends = await Promise.all(files.map((s) => transcriptEndOf($, s, now)));
+  const shared = ((await $.store.get(STORE_KEYS.ends)) ?? {}) as EndStore;
+  const ends = await Promise.all(
+    files.map((s) => transcriptEndOf($, s, now, shared)),
+  );
+  await shareEnds(
+    $,
+    shared,
+    files.filter((_, index) => ends[index]).map(transcriptPath),
+  );
   return latestRunsOnly(
     files.flatMap((s, index) => {
       const end = ends[index];
