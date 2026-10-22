@@ -88,7 +88,7 @@ const composerRows = (text: string, width: number) => {
       (total, line) => total + Math.max(1, Math.ceil(line.length / perRow)),
       0,
     );
-  return Math.min(COMPOSER_MAX_ROWS, Math.max(1, rows));
+  return Math.min(COMPOSER_MAX_ROWS, Math.max(2, rows));
 };
 
 const hasPreview = (card: SessionCard) =>

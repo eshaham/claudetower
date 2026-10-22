@@ -313,7 +313,14 @@ export async function sendAction(
   action: SessionAction,
 ) {
   if (card.cliId === host.selfCliId) {
-    await $.prompt.submit({ text: action.message, asUser: true });
+    await update($, sending, () => card.id);
+    try {
+      await $.prompt.submit({ text: action.message, asUser: true });
+    } finally {
+      await update($, sending, (current) =>
+        current === card.id ? "" : current,
+      );
+    }
     return;
   }
   const path = inboxPathOf(card.cliId);
