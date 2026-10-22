@@ -250,8 +250,8 @@ export async function followOtherSessions($: EngineInterface) {
 }
 
 export async function poll($: EngineInterface) {
-  await load($);
   await followOtherSessions($);
+  await load($);
 }
 
 export function readCards($: EngineInterface) {

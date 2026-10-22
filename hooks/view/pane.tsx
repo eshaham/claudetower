@@ -182,29 +182,37 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     );
   };
 
-  const suggestions = (card: SessionCard) =>
-    !card.isRunning &&
-    card.options.length > 0 && (
-      <Box flexDirection="column" marginTop={1}>
-        {card.question !== "" && (
-          <Text dimColor size="caption" wrap="wrap">
+  const actions = (card: SessionCard) => {
+    const options = card.isRunning ? [] : card.options;
+    if (options.length === 0 && !card.canArchive) return null;
+    return (
+      <Box flexDirection="column" marginTop={1} rowGap={1}>
+        {options.length > 0 && card.question !== "" && (
+          <Text dimColor wrap="wrap">
             {card.question}
           </Text>
         )}
-        <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
-          {card.options.map((option, index) => (
-            <Box
+        <Box flexDirection="row" flexWrap="wrap" columnGap={1} rowGap={1}>
+          {options.map((option, index) => (
+            <Button
               key={`option-${card.id}-${index}`}
-              borderStyle="round"
-              borderDimColor
-              paddingX={1}
-            >
-              <Text size="caption">{option}</Text>
-            </Box>
+              variant={index === 0 ? "primary" : "secondary"}
+              label={option}
+              onPress={() => openSession($, card.id)}
+            />
           ))}
+          {card.canArchive && (
+            <Button
+              key={`archive-${card.id}`}
+              variant={options.length === 0 ? "primary" : "secondary"}
+              label="Archive"
+              onPress={() => archiveSession($, card)}
+            />
+          )}
         </Box>
       </Box>
     );
+  };
 
   const preview = (card: SessionCard) =>
     previewedId === card.id && (
@@ -226,16 +234,6 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
           </Box>
         )}
         {card.lastReply !== "" && <Markdown text={card.lastReply} />}
-        <Box marginTop={1}>
-          <Button
-            key={`collapse-${card.id}`}
-            plain
-            dimColor
-            hover={{ dimColor: false, underline: true }}
-            label="Collapse ▴"
-            onPress={() => togglePreview($, card.id)}
-          />
-        </Box>
       </Box>
     );
 
@@ -258,7 +256,6 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
         </Text>
         {prLines(card)}
         {reason(card)}
-        {suggestions(card)}
         {Svg && hasPreview(card) && (
           <Box position="absolute" top={0} right={0}>
             <Svg
@@ -282,12 +279,16 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
         )}
       </Box>
       {preview(card)}
-      {card.canArchive && (
-        <Box flexDirection="row" justifyContent="flex-end">
+      {actions(card)}
+      {previewedId === card.id && (
+        <Box marginTop={1}>
           <Button
-            key={`archive-${card.id}`}
-            label="Archive"
-            onPress={() => archiveSession($, card)}
+            key={`collapse-${card.id}`}
+            plain
+            dimColor
+            hover={{ dimColor: false, underline: true }}
+            label="Collapse ▴"
+            onPress={() => togglePreview($, card.id)}
           />
         </Box>
       )}
@@ -308,6 +309,8 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
       </Text>
     </Box>
   );
+
+  if (list.length === 0) return <Text dimColor>Loading your sessions…</Text>;
 
   if (width >= BOARD_MIN_COLUMNS) {
     const laneWidth = `${Math.floor(100 / LANES.length)}%`;
