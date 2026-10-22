@@ -16,7 +16,7 @@ export const PROJECT_TTL_MS = 7 * DAY_MS;
 export const CLAIM_MS = 5 * MINUTE_MS;
 export const ANSWER_CHECK_MS = SECOND_MS;
 export const ANSWER_PICKUP_MS = 10 * SECOND_MS;
-export const ANSWER_TTL_MS = 10 * MINUTE_MS;
+export const INBOX_POLL_MS = 2 * SECOND_MS;
 export const POLL_MS = 15 * SECOND_MS;
 
 export const TAIL_BYTES = 1500000;
@@ -42,7 +42,6 @@ export const STORE_KEYS = {
   tickets: "tickets-v2",
   prs: "prs",
   ends: "transcript-ends-v1",
-  answers: "answers",
   projects: "projects-v1",
   isOpen: "isOpen",
 } as const;
@@ -53,7 +52,6 @@ export const PR_TTL_MS = 5 * MINUTE_MS;
 export const PR_LOOKUPS_PER_POLL = 4;
 
 export const ARCHIVE_SESSION = "mcp__ccd_session_mgmt__archive_session";
-export const SEND_MESSAGE = "mcp__ccd_session_mgmt__send_message";
 
 const SESSIONS_ROOT = "Library/Application Support/Claude/claude-code-sessions";
 
@@ -118,3 +116,5 @@ export async function loadTools($: EngineInterface) {
 }
 
 export const sessionsRoot = () => `${host.home}/${SESSIONS_ROOT}`;
+
+export const inboxDir = () => `${host.home}/.claude/claudtower/inbox`;

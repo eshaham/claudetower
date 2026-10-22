@@ -5,10 +5,9 @@ import type { SessionAction, SessionCard } from "../../types";
 import { classify } from "./classify";
 import {
   ARCHIVE_SESSION,
-  SEND_MESSAGE,
   ANSWER_CHECK_MS,
   ANSWER_PICKUP_MS,
-  ANSWER_TTL_MS,
+  inboxDir,
   host,
   PANE,
   PANE_COLUMNS,
@@ -64,11 +63,6 @@ export const sending = atom(
   { plugin: "claudtower", key: "sending" } as const,
   "",
 );
-
-type Answers = Record<string, { to: string; text: string; at: number }>;
-
-const ANSWER_MARKER = "claudtower-answer:";
-const ANSWER_PATTERN = /^claudtower-answer:([0-9a-f-]{36})$/m;
 
 type Stores = {
   verdicts: VerdictStore;
@@ -285,20 +279,12 @@ export function isPaneOpen($: EngineInterface) {
   return read($, isOpen);
 }
 
-async function readAnswers($: EngineInterface) {
-  return ((await $.store.get(STORE_KEYS.answers)) ?? {}) as Answers;
-}
+const inboxPathOf = (cliId: string) => `${inboxDir()}/${cliId}.json`;
 
-async function writeAnswers($: EngineInterface, answers: Answers) {
-  const now = Date.now();
-  await $.store.set(
-    STORE_KEYS.answers,
-    Object.fromEntries(
-      Object.entries(answers).filter(
-        ([, answer]) => now - answer.at < ANSWER_TTL_MS,
-      ),
-    ),
-  );
+async function removeFile($: EngineInterface, path: string) {
+  const removed = await $.process.run(["/bin/rm", "-f", path]);
+  if (removed.exitCode !== 0)
+    log($, `could not remove ${path}: ${removed.stderr.trim()}`);
 }
 
 export function readSending($: EngineInterface) {
@@ -310,54 +296,36 @@ export async function sendAction(
   card: SessionCard,
   action: SessionAction,
 ) {
-  const nonce = crypto.randomUUID();
+  const path = inboxPathOf(card.cliId);
   await update($, sending, () => card.id);
   try {
-    await writeAnswers($, {
-      ...(await readAnswers($)),
-      [nonce]: { to: card.cliId, text: action.message, at: Date.now() },
-    });
-    const text = `${ANSWER_MARKER}${nonce}\nYour answer from the claudtower board: ${action.message}`;
-    const sent = await $.session.send({ to: { sessionId: card.cliId }, text });
-    if (!sent.isDelivered) {
-      const woken = await $.tool.call({
-        tool: SEND_MESSAGE,
-        session_id: card.id,
-        message: text,
-      });
-      if (woken.deny !== undefined || woken.isError)
-        log(
-          $,
-          `could not deliver to "${card.title}": ${sent.reason}; ${woken.deny ?? woken.text ?? ""}`,
-        );
-    }
+    await $.fs.write(
+      path,
+      JSON.stringify({ text: action.message, at: Date.now() }),
+    );
     for (let waited = 0; waited < ANSWER_PICKUP_MS; waited += ANSWER_CHECK_MS) {
       await $.clock.sleep(ANSWER_CHECK_MS);
-      if (!(await readAnswers($))[nonce]) {
+      if (!(await $.fs.exists(path))) {
         await load($);
         return;
       }
     }
-    const { [nonce]: unclaimed, ...rest } = await readAnswers($);
-    await writeAnswers($, rest);
-    if (unclaimed) {
-      $.ui.toast(
-        `"${card.title}" didn't pick up the answer, so it opened instead`,
-      );
-      await openSession($, card.id);
-    }
+    await removeFile($, path);
+    $.ui.toast(`"${card.title}" isn't running, so it opened instead`);
+    await openSession($, card.id);
   } finally {
     await update($, sending, (current) => (current === card.id ? "" : current));
   }
 }
 
-export async function takeAnswer($: EngineInterface, text: string) {
-  const nonce = text.match(ANSWER_PATTERN)?.[1];
-  if (!nonce) return null;
-  const { [nonce]: answer, ...rest } = await readAnswers($);
-  if (!answer || answer.to !== host.selfCliId) return null;
-  await writeAnswers($, rest);
-  return answer.text;
+export async function checkInbox($: EngineInterface) {
+  const path = inboxPathOf(host.selfCliId);
+  if (!host.selfCliId || !(await $.fs.exists(path))) return;
+  const raw = await $.fs.read(path);
+  await removeFile($, path);
+  const { text, at } = JSON.parse(raw) as { text?: string; at?: number };
+  if (!text || Date.now() - (at ?? 0) > ANSWER_PICKUP_MS) return;
+  await $.prompt.submit({ text, asUser: true });
 }
 
 export function readComposing($: EngineInterface) {

@@ -2,6 +2,7 @@ import type { Register } from "claude-code";
 
 import type { CardHitMessage } from "../types";
 import {
+  checkInbox,
   followOtherSessions,
   isPaneOpen,
   load,
@@ -9,11 +10,11 @@ import {
   openSession,
   poll,
   setPaneOpen,
-  takeAnswer,
   toggleCompose,
   togglePreview,
 } from "./lib/board";
 import {
+  INBOX_POLL_MS,
   PANE,
   POLL_MS,
   discoverHost,
@@ -35,22 +36,16 @@ export const register: Register = (on, options) => {
     void discoverHost($)
       .then(() => {
         $.clock.every(POLL_MS, () => poll($));
+        $.clock.every(INBOX_POLL_MS, () =>
+          checkInbox($).catch((error: unknown) =>
+            log($, `could not check for answers: ${String(error)}`),
+          ),
+        );
         return poll($);
       })
       .catch((error: unknown) => log($, `could not start: ${String(error)}`));
 
     return next(e);
-  });
-
-  on("session.receive", async ($, e, next) => {
-    const answer = await takeAnswer($, e.text);
-    if (answer === null) return next(e);
-    void $.prompt
-      .submit({ text: answer, asUser: true })
-      .catch((error: unknown) =>
-        log($, `could not submit an answer from the board: ${String(error)}`),
-      );
-    return { consumed: "answer from the claudtower board" };
   });
 
   on("command.run", { command: "tower" }, async ($) => {
