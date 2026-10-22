@@ -376,7 +376,13 @@ export function readComposing($: EngineInterface) {
 
 export async function toggleCompose($: EngineInterface, id: string) {
   await update($, draft, () => "");
-  await update($, composing, (current) => (current === id ? "" : id));
+  const opened = await update($, composing, (current) =>
+    current === id ? "" : id,
+  );
+  if (opened !== id) return;
+  const focused = await $.ui.focus({ requestId: PANE, key: `compose-${id}` });
+  if (focused.deny !== undefined)
+    log($, `could not focus the message box: ${focused.deny}`);
 }
 
 export function readDraft($: EngineInterface) {
