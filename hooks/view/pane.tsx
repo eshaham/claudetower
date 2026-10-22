@@ -290,7 +290,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
       {preview(card)}
       {actions(card)}
       {previewedId === card.id && (
-        <Box marginTop={1} flexDirection="row" justifyContent="flex-end">
+        <Box marginTop={1} flexDirection="row" justifyContent="center">
           <Button
             key={`collapse-${card.id}`}
             plain
