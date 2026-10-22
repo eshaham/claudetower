@@ -11,6 +11,7 @@ import {
   host,
   PANE,
   PANE_COLUMNS,
+  PENDING_MS,
   PREVIEW_REPLY_CHARS,
   READ_CONCURRENCY,
   READS_PER_POLL,
@@ -59,9 +60,9 @@ export const composing = atom(
   { plugin: "claudtower", key: "composing" } as const,
   "",
 );
-export const sending = atom(
-  { plugin: "claudtower", key: "sending" } as const,
-  "",
+export const pending = atom(
+  { plugin: "claudtower", key: "pending" } as const,
+  {},
 );
 
 type Stores = {
@@ -136,6 +137,7 @@ const cardOf = (one: Enriched, now: number, stores: Stores): SessionCard => {
     isRunning: !end.isStopped,
     isScheduled: Boolean(s.scheduledTaskId),
     ageMs: now - end.lastAt,
+    lastAt: end.lastAt,
     verdict: current ?? stored?.verdict ?? null,
     isRereading: end.isStopped && current === null,
   });
@@ -148,6 +150,15 @@ async function build($: EngineInterface, live: Live[], now: number) {
     .map((one) => cardOf(one, now, stores))
     .sort((a, b) => b.score - a.score);
   await update($, cards, () => built);
+  await update($, pending, (current) =>
+    Object.fromEntries(
+      Object.entries(current).filter(
+        ([id, at]) =>
+          now - at < PENDING_MS &&
+          (built.find((card) => card.id === id)?.lastAt ?? 0) < at,
+      ),
+    ),
+  );
   return { stores, enriched };
 }
 
@@ -303,8 +314,20 @@ async function removeFile($: EngineInterface, path: string) {
     log($, `could not remove ${path}: ${removed.stderr.trim()}`);
 }
 
-export function readSending($: EngineInterface) {
-  return read($, sending);
+export function readPending($: EngineInterface) {
+  return read($, pending);
+}
+
+async function markPending($: EngineInterface, id: string) {
+  await update($, composing, () => "");
+  await update($, draft, () => "");
+  await update($, pending, (current) => ({ ...current, [id]: Date.now() }));
+}
+
+function clearPending($: EngineInterface, id: string) {
+  return update($, pending, (current) =>
+    Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)),
+  );
 }
 
 export async function sendAction(
@@ -312,37 +335,29 @@ export async function sendAction(
   card: SessionCard,
   action: SessionAction,
 ) {
+  await markPending($, card.id);
   if (card.cliId === host.selfCliId) {
-    await update($, sending, () => card.id);
     try {
       await $.prompt.submit({ text: action.message, asUser: true });
-    } finally {
-      await update($, sending, (current) =>
-        current === card.id ? "" : current,
-      );
+    } catch (error) {
+      await clearPending($, card.id);
+      throw error;
     }
     return;
   }
   const path = inboxPathOf(card.cliId);
-  await update($, sending, () => card.id);
-  try {
-    await $.fs.write(
-      path,
-      JSON.stringify({ text: action.message, at: Date.now() }),
-    );
-    for (let waited = 0; waited < ANSWER_PICKUP_MS; waited += ANSWER_CHECK_MS) {
-      await $.clock.sleep(ANSWER_CHECK_MS);
-      if (!(await $.fs.exists(path))) {
-        await load($);
-        return;
-      }
-    }
-    await removeFile($, path);
-    $.ui.toast(`"${card.title}" isn't running, so it opened instead`);
-    await openSession($, card.id);
-  } finally {
-    await update($, sending, (current) => (current === card.id ? "" : current));
+  await $.fs.write(
+    path,
+    JSON.stringify({ text: action.message, at: Date.now() }),
+  );
+  for (let waited = 0; waited < ANSWER_PICKUP_MS; waited += ANSWER_CHECK_MS) {
+    await $.clock.sleep(ANSWER_CHECK_MS);
+    if (!(await $.fs.exists(path))) return;
   }
+  await removeFile($, path);
+  await clearPending($, card.id);
+  $.ui.toast(`"${card.title}" isn't running, so it opened instead`);
+  await openSession($, card.id);
 }
 
 export async function checkInbox($: EngineInterface) {
@@ -379,7 +394,5 @@ export async function sendText(
 ) {
   const message = text.trim();
   if (message === "") return;
-  await update($, draft, () => "");
-  await update($, composing, (current) => (current === card.id ? "" : current));
   await sendAction($, card, { label: message, message });
 }

@@ -9,7 +9,7 @@ import {
   readComposing,
   readDraft,
   setDraft,
-  readSending,
+  readPending,
   sendText,
   sendAction,
   togglePreview,
@@ -88,7 +88,7 @@ const composerRows = (text: string, width: number) => {
       (total, line) => total + Math.max(1, Math.ceil(line.length / perRow)),
       0,
     );
-  return Math.min(COMPOSER_MAX_ROWS, Math.max(2, rows));
+  return Math.min(COMPOSER_MAX_ROWS, Math.max(1, rows));
 };
 
 const hasPreview = (card: SessionCard) =>
@@ -99,17 +99,19 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
   const { Box, Text, Button, Markdown } = resolved;
   const Svg = "Svg" in resolved ? resolved.Svg : null;
   const Client = "Client" in resolved ? resolved.Client : null;
-  const [list, previewedId, sendingId, composingId, draftText] =
+  const [list, previewedId, pendingAt, composingId, draftText] =
     await Promise.all([
       readCards($),
       readPreviewed($),
-      readSending($),
+      readPending($),
       readComposing($),
       readDraft($),
     ]);
   const Input = "Input" in resolved ? resolved.Input : null;
+  const isProcessing = (card: SessionCard) =>
+    card.isRunning || (pendingAt[card.id] ?? 0) > card.lastAt;
   const canCompose = (card: SessionCard) =>
-    card.cliId !== host.selfCliId && sendingId !== card.id;
+    card.cliId !== host.selfCliId && !isProcessing(card);
   const width = e.props.bodyColumns || e.viewport?.columns || PANE_COLUMNS;
   const isSelf = (card: SessionCard) => card.cliId === host.selfCliId;
   const self = list.find(isSelf);
@@ -212,13 +214,13 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
   };
 
   const actions = (card: SessionCard) => {
-    if (sendingId === card.id)
+    if (isProcessing(card))
       return (
         <Box marginTop={1}>
-          <Text dimColor>Sending…</Text>
+          <Text dimColor>Working…</Text>
         </Box>
       );
-    const options = card.isRunning ? [] : card.options;
+    const { options } = card;
     if (options.length === 0 && !card.canArchive) return null;
     return (
       <Box flexDirection="column" marginTop={1} rowGap={1}>
@@ -329,7 +331,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
       </Box>
       {preview(card)}
       {actions(card)}
-      {composingId === card.id && Input && (
+      {composingId === card.id && canCompose(card) && Input && (
         <Box marginTop={1} width="100%" flexDirection="column">
           <Input
             key={`compose-${card.id}`}

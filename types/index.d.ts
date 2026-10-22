@@ -59,6 +59,7 @@ export type SessionCard = {
   isRunning: boolean;
   isScheduled: boolean;
   ageMs: number;
+  lastAt: number;
   verdict: Verdict | null;
   isRereading: boolean;
   lane: LaneId;
@@ -77,7 +78,7 @@ declare module "claude-code" {
       cards: SessionCard[];
       isOpen: boolean;
       previewed: string;
-      sending: string;
+      pending: Record<string, number>;
       composing: string;
       draft: string;
     };

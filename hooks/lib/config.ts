@@ -18,6 +18,7 @@ export const ANSWER_CHECK_MS = SECOND_MS;
 export const ANSWER_PICKUP_MS = 10 * SECOND_MS;
 export const INBOX_POLL_MS = 2 * SECOND_MS;
 export const POLL_MS = 15 * SECOND_MS;
+export const PENDING_MS = 2 * MINUTE_MS;
 
 export const TAIL_BYTES = 1500000;
 export const LAST_TEXT_CHARS = 6000;
