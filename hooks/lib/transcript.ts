@@ -6,6 +6,7 @@ import {
   PROMPT_CHARS,
   RUNNING_GRACE_MS,
   TAIL_BYTES,
+  TOOL_GRACE_MS,
   HOUR_MS,
   host,
   log,
@@ -36,6 +37,8 @@ export type TranscriptEnd = {
   prompt: string;
   promptAt: number;
   lastText: string;
+  question: string;
+  options: string[];
   uncommittedFiles: number;
 };
 
@@ -47,6 +50,17 @@ export type StartedSession = {
   hoursAgo: number;
 };
 
+type ContentBlock = {
+  type?: string;
+  text?: string;
+  name?: string;
+  input?: {
+    ask?: string;
+    actions?: { label?: string }[];
+    questions?: { question?: string; options?: { label?: string }[] }[];
+  };
+};
+
 type TranscriptLine = {
   lastPrompt?: string;
   type?: string;
@@ -55,7 +69,7 @@ type TranscriptLine = {
   isSidechain?: boolean;
   message?: {
     stop_reason?: string | null;
-    content?: string | { type?: string; text?: string }[];
+    content?: string | ContentBlock[];
   };
 };
 
@@ -71,16 +85,13 @@ export const projectOf = (s: SessionFile) => {
   return repoRoot.split("/").filter(Boolean).pop() ?? "unknown";
 };
 
-export const ticketOf = (s: SessionFile) =>
-  (host.ticketPattern &&
-    `${s.title ?? ""} ${s.branch ?? ""}`
-      .match(host.ticketPattern)?.[0]
-      ?.toUpperCase()) ||
+export const ticketOf = (s: SessionFile, pattern: RegExp | null) =>
+  (pattern &&
+    `${s.title ?? ""} ${s.branch ?? ""}`.match(pattern)?.[0]?.toUpperCase()) ||
   "";
 
-export const titleOf = (s: SessionFile) => {
+export const titleOf = (s: SessionFile, ticket: string) => {
   const title = s.title ?? "Untitled";
-  const ticket = ticketOf(s);
   return ticket && title.toUpperCase().startsWith(`${ticket}:`)
     ? title.slice(ticket.length + 1).trim()
     : title;
@@ -119,6 +130,26 @@ const isPrompt = (line: TranscriptLine) => {
   return text !== "" && (!text.startsWith("<") || text.startsWith("<!--"));
 };
 
+const SUGGESTION_TOOLS = /(__wrap_up|^AskUserQuestion)$/;
+
+const suggestedActionsOf = (turn: TranscriptLine[]) => {
+  const blocks = turn.flatMap((line) =>
+    Array.isArray(line.message?.content) ? line.message.content : [],
+  );
+  const call = blocks.findLast(
+    (block) =>
+      block.type === "tool_use" && SUGGESTION_TOOLS.test(block.name ?? ""),
+  );
+  const input = call?.input;
+  const asked = input?.questions?.[0];
+  return {
+    question: input?.ask ?? asked?.question ?? "",
+    options: (input?.actions ?? asked?.options ?? [])
+      .map((option) => option.label ?? "")
+      .filter(Boolean),
+  };
+};
+
 const timeOf = (line: TranscriptLine | undefined) =>
   line?.timestamp ? Date.parse(line.timestamp) : 0;
 
@@ -139,10 +170,15 @@ async function countUncommitted($: EngineInterface, cwd: string) {
   return status.stdout.split("\n").filter(Boolean).length;
 }
 
-function parseLines($: EngineInterface, path: string, raw: string) {
+function parseLines(
+  $: EngineInterface,
+  path: string,
+  raw: string,
+  isPartial: boolean,
+) {
   const lines: TranscriptLine[] = [];
   let recordedPrompt = "";
-  for (const text of raw.split("\n").slice(1)) {
+  for (const text of raw.split("\n").slice(isPartial ? 1 : 0)) {
     if (text.trim() === "") continue;
     try {
       const line = JSON.parse(text) as TranscriptLine;
@@ -167,11 +203,17 @@ async function readTranscriptEnd(
   $: EngineInterface,
   s: SessionFile,
   path: string,
-  mtimeMs: number,
+  stat: { mtimeMs: number; size: number },
 ): Promise<TranscriptEnd> {
+  const { mtimeMs } = stat;
   const tail = await $.process.run(["tail", "-c", String(TAIL_BYTES), path]);
   if (tail.exitCode !== 0) throw new Error(tail.stderr.trim());
-  const { lines, recordedPrompt } = parseLines($, path, tail.stdout);
+  const { lines, recordedPrompt } = parseLines(
+    $,
+    path,
+    tail.stdout,
+    stat.size > TAIL_BYTES,
+  );
   const last = lines[lines.length - 1];
   const promptIndex = lines.findLastIndex(isPrompt);
   const turn = lines
@@ -184,11 +226,16 @@ async function readTranscriptEnd(
           isPrompt(line) && textOf(line).trim() === recordedPrompt.trim(),
       )) ||
     lines[promptIndex];
+  const isWaitingOnTool =
+    last?.type === "assistant" && hasBlock(last, "tool_use");
+  const endedCleanly =
+    last?.type === "assistant" &&
+    !isWaitingOnTool &&
+    last.message?.stop_reason !== null;
   const isStopped =
-    (last?.type === "assistant" &&
-      !hasBlock(last, "tool_use") &&
-      last.message?.stop_reason !== null) ||
-    Date.now() - mtimeMs > RUNNING_GRACE_MS;
+    endedCleanly ||
+    Date.now() - mtimeMs > (isWaitingOnTool ? TOOL_GRACE_MS : RUNNING_GRACE_MS);
+  const { question, options } = suggestedActionsOf(turn);
   return {
     mtimeMs,
     lastAt: timeOf(last) || mtimeMs,
@@ -205,6 +252,8 @@ async function readTranscriptEnd(
       .filter(Boolean)
       .join("\n\n")
       .slice(-LAST_TEXT_CHARS),
+    question,
+    options,
     uncommittedFiles: isStopped ? await countUncommitted($, s.cwd ?? "") : 0,
   };
 }
@@ -295,7 +344,7 @@ async function transcriptEndOf(
     cached && !cached.isStopped && now - cached.mtimeMs > RUNNING_GRACE_MS;
   if (cached?.mtimeMs === stat.mtimeMs && !isIdleRun) return cached;
   try {
-    const end = await readTranscriptEnd($, s, path, stat.mtimeMs);
+    const end = await readTranscriptEnd($, s, path, stat);
     transcriptEnds.set(path, end);
     return end;
   } catch (error) {

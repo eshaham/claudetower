@@ -11,6 +11,9 @@ export const DAY_MS = 24 * HOUR_MS;
 export const FRESH_MS = 3 * DAY_MS;
 export const LOOKBACK_MS = 30 * DAY_MS;
 export const RUNNING_GRACE_MS = 15 * MINUTE_MS;
+export const TOOL_GRACE_MS = 2 * HOUR_MS;
+export const PROJECT_TTL_MS = 7 * DAY_MS;
+export const CLAIM_MS = 5 * MINUTE_MS;
 export const POLL_MS = 15 * SECOND_MS;
 
 export const TAIL_BYTES = 1500000;
@@ -31,8 +34,11 @@ export const CARDS_PER_LANE = 8;
 export const VERDICT_MODEL = "sonnet";
 
 export const STORE_KEYS = {
-  verdicts: "verdicts-v8",
-  tickets: "tickets",
+  verdicts: "verdicts-v9",
+  claims: "claims",
+  tickets: "tickets-v2",
+  prs: "prs",
+  projects: "projects-v1",
   isOpen: "isOpen",
 } as const;
 
@@ -47,30 +53,31 @@ const SESSIONS_ROOT = "Library/Application Support/Claude/claude-code-sessions";
 
 export type McpToolName = `mcp__${string}__${string}`;
 
-const isMcpToolName = (name: string): name is McpToolName =>
+export const isMcpToolName = (name: string): name is McpToolName =>
   /^mcp__.+__.+$/.test(name);
+
+export type ToolSummary = { name: string; description: string };
 
 export const host: {
   home: string;
   gh: string;
-  issueTool: McpToolName | "";
   selfCliId: string;
-  ticketPattern: RegExp | null;
-} = { home: "", gh: "", issueTool: "", selfCliId: "", ticketPattern: null };
+  tools: ToolSummary[];
+  ticketPrefixOverride: string[];
+} = { home: "", gh: "", selfCliId: "", tools: [], ticketPrefixOverride: [] };
 
 export function log($: EngineInterface, message: string) {
   $.ui.log(`${PLUGIN}: ${message}`);
 }
 
+export const isTicketPrefix = (prefix: string) =>
+  /^[A-Za-z][A-Za-z0-9]*$/.test(prefix);
+
 export const setTicketPrefixes = (prefixes: string) => {
-  const list = prefixes
+  host.ticketPrefixOverride = prefixes
     .split(",")
     .map((prefix) => prefix.trim())
-    .filter((prefix) => /^[A-Za-z][A-Za-z0-9]*$/.test(prefix));
-  host.ticketPattern =
-    list.length > 0
-      ? new RegExp(`\\b(?:${list.join("|")})-\\d+\\b`, "i")
-      : null;
+    .filter(isTicketPrefix);
 };
 
 export async function discoverHost($: EngineInterface) {
@@ -83,10 +90,9 @@ export async function discoverHost($: EngineInterface) {
   host.home = home.stdout.trim();
   host.gh = gh.exitCode === 0 ? gh.stdout.trim() : "";
   host.selfCliId = selfCliId;
-  const issueTool = tools.find(
-    (tool) => /linear/i.test(tool.name) && tool.name.endsWith("__get_issue"),
-  )?.name;
-  host.issueTool = issueTool && isMcpToolName(issueTool) ? issueTool : "";
+  host.tools = tools
+    .filter((tool) => tool.mcp)
+    .map((tool) => ({ name: tool.name, description: tool.description }));
   if (!host.gh) log($, "gh not found; PR details are off");
 }
 

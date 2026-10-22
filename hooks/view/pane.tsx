@@ -10,6 +10,7 @@ import {
 } from "../lib/board";
 import {
   LANES,
+  PRIORITY_BADGES,
   badgeOf,
   belongsInList,
   isAskingYou,
@@ -159,11 +160,15 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
 
   const reason = (card: SessionCard) => {
     const badge = badgeOf(card);
+    const priority =
+      !card.isRunning && card.verdict
+        ? PRIORITY_BADGES[card.verdict.priority]
+        : undefined;
     return (
       <Text wrap="wrap">
-        {card.verdict?.urgency === "high" && !card.isRunning && (
-          <Text color="error" weight="semibold">
-            Urgent{" "}
+        {priority && (
+          <Text color={priority.color} weight="semibold">
+            {priority.label}{" "}
           </Text>
         )}
         {badge && (
@@ -176,6 +181,30 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
       </Text>
     );
   };
+
+  const suggestions = (card: SessionCard) =>
+    !card.isRunning &&
+    card.options.length > 0 && (
+      <Box flexDirection="column" marginTop={1}>
+        {card.question !== "" && (
+          <Text dimColor size="caption" wrap="wrap">
+            {card.question}
+          </Text>
+        )}
+        <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
+          {card.options.map((option, index) => (
+            <Box
+              key={`option-${card.id}-${index}`}
+              borderStyle="round"
+              borderDimColor
+              paddingX={1}
+            >
+              <Text size="caption">{option}</Text>
+            </Box>
+          ))}
+        </Box>
+      </Box>
+    );
 
   const preview = (card: SessionCard) =>
     previewedId === card.id && (
@@ -229,6 +258,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
         </Text>
         {prLines(card)}
         {reason(card)}
+        {suggestions(card)}
         {Svg && hasPreview(card) && (
           <Box position="absolute" top={0} right={0}>
             <Svg

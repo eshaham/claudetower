@@ -2,7 +2,7 @@ import type {
   LaneId,
   PrBadge,
   SessionCard,
-  Urgency,
+  Priority,
   Verdict,
 } from "../../types";
 import { HOUR_MS } from "./config";
@@ -67,7 +67,8 @@ export const laneInfo = (id: LaneId) => LANE_BY_ID[id]!;
 const RECENCY_WEIGHT = 100;
 const RECENCY_HALF_LIFE_HOURS = 48;
 const TICKET_PRIORITY_BOOST: Record<number, number> = { 1: 80, 2: 50, 3: 20 };
-const URGENCY_BOOST: Record<Urgency, number> = {
+const PRIORITY_BOOST: Record<Priority, number> = {
+  critical: 200,
   high: 80,
   normal: 0,
   low: -30,
@@ -111,7 +112,7 @@ export const classify = (facts: CardFacts): SessionCard => {
   const score =
     RECENCY_WEIGHT * 0.5 ** (facts.ageMs / HOUR_MS / RECENCY_HALF_LIFE_HOURS) +
     (TICKET_PRIORITY_BOOST[facts.ticketPriority] ?? 0) +
-    (facts.verdict ? URGENCY_BOOST[facts.verdict.urgency] : 0) +
+    (facts.verdict ? (PRIORITY_BOOST[facts.verdict.priority] ?? 0) : 0) +
     laneInfo(lane).boost;
   return { ...facts, lane, canArchive, score };
 };
@@ -145,3 +146,10 @@ export const reasonOf = (card: SessionCard) => {
 
 export const badgeOf = (card: SessionCard) =>
   card.isRunning || card.lane === "wrap-up" ? null : laneInfo(card.lane);
+
+export const PRIORITY_BADGES: Partial<
+  Record<Priority, { label: string; color: string }>
+> = {
+  critical: { label: "Critical", color: "error" },
+  high: { label: "High", color: "warning" },
+};

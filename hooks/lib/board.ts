@@ -1,7 +1,7 @@
 import { atom, read, update } from "claude-code";
 import type { EngineInterface } from "claude-code";
 
-import type { SessionCard, TicketInfo } from "../../types";
+import type { SessionCard } from "../../types";
 import { classify } from "./classify";
 import {
   ARCHIVE_SESSION,
@@ -13,10 +13,26 @@ import {
   STORE_KEYS,
   log,
 } from "./config";
-import { prBadgesOf, readTickets, refreshPrs, refreshTickets } from "./enrich";
+import type { PrStore, TicketStore } from "./enrich";
+import {
+  isOpenPr,
+  prBadgesOf,
+  readPrs,
+  readTickets,
+  refreshPrs,
+  refreshTickets,
+} from "./enrich";
+import type { ProjectProfile } from "./project";
+import {
+  claim,
+  projectRootOf,
+  readProjects,
+  refreshProjects,
+  ticketPatternOf,
+} from "./project";
 import type { Live } from "./transcript";
 import { loadLive, projectOf, ticketOf, titleOf } from "./transcript";
-import type { VerdictStore } from "./verdict";
+import type { VerdictContext, VerdictStore } from "./verdict";
 import {
   SILENT_STOP,
   judge,
@@ -35,6 +51,15 @@ export const previewed = atom(
   "",
 );
 
+type Stores = {
+  verdicts: VerdictStore;
+  tickets: TicketStore;
+  prs: PrStore;
+  projects: Record<string, ProjectProfile>;
+};
+
+type Enriched = Live & { context: VerdictContext; ticket: string };
+
 const reading = new Set<string>();
 let isLoading = false;
 
@@ -45,35 +70,56 @@ const fromParagraphStart = (text: string, limit: number) => {
   return paragraph >= 0 ? cut.slice(paragraph + 2) : cut;
 };
 
-const cardOf = (
-  live: Live,
-  now: number,
-  verdicts: VerdictStore,
-  tickets: Record<string, TicketInfo>,
-): SessionCard => {
-  const { s, end } = live;
-  const stored = verdicts[s.sessionId];
+async function readStores($: EngineInterface): Promise<Stores> {
+  const [verdicts, tickets, prs, projects] = await Promise.all([
+    readVerdicts($),
+    readTickets($),
+    readPrs($),
+    readProjects($),
+  ]);
+  return { verdicts, tickets, prs, projects };
+}
+
+const enrich = (live: Live[], stores: Stores): Enriched[] =>
+  live.map((one) => {
+    const project = stores.projects[projectRootOf(one.s)];
+    const openPrs = prBadgesOf(one.s.prs, stores.prs)
+      .filter((pr) => isOpenPr(pr.state))
+      .map((pr) => pr.number);
+    return {
+      ...one,
+      ticket: ticketOf(one.s, ticketPatternOf(project)),
+      context: { openPrs, project },
+    };
+  });
+
+const keyOf = (one: Enriched) => verdictKeyOf(one, one.context);
+
+const cardOf = (one: Enriched, now: number, stores: Stores): SessionCard => {
+  const { s, end, ticket } = one;
+  const stored = stores.verdicts[s.sessionId];
   const current =
-    stored?.key === verdictKeyOf(live)
+    stored?.key === keyOf(one)
       ? stored.verdict
       : end.isStopped && end.lastText === ""
         ? SILENT_STOP
         : null;
-  const ticket = ticketOf(s);
-  const info = tickets[ticket];
+  const info = stores.tickets[ticket];
   return classify({
     id: s.sessionId,
     cliId: s.cliSessionId ?? "",
-    title: titleOf(s),
+    title: titleOf(s, ticket),
     project: projectOf(s),
     ticket,
     ticketStatus: info?.status ?? "",
     ticketPriority: info?.isOpen ? info.priority : 0,
-    prs: prBadgesOf(s.prs),
+    prs: prBadgesOf(s.prs, stores.prs),
     uncommittedFiles: end.uncommittedFiles,
     lastAsk: end.prompt,
     lastAskAgoMs: end.promptAt ? now - end.promptAt : 0,
     lastReply: fromParagraphStart(end.lastText, PREVIEW_REPLY_CHARS),
+    question: end.question,
+    options: end.options,
     isRunning: !end.isStopped,
     isScheduled: Boolean(s.scheduledTaskId),
     ageMs: now - end.lastAt,
@@ -83,28 +129,26 @@ const cardOf = (
 };
 
 async function build($: EngineInterface, live: Live[], now: number) {
-  const [verdicts, tickets] = await Promise.all([
-    readVerdicts($),
-    readTickets($),
-  ]);
-  const built = live
-    .map((one) => cardOf(one, now, verdicts, tickets))
+  const stores = await readStores($);
+  const enriched = enrich(live, stores);
+  const built = enriched
+    .map((one) => cardOf(one, now, stores))
     .sort((a, b) => b.score - a.score);
   await update($, cards, () => built);
-  return verdicts;
+  return { stores, enriched };
 }
 
 async function readNewVerdicts(
   $: EngineInterface,
-  live: Live[],
+  enriched: Enriched[],
   verdicts: VerdictStore,
 ) {
-  const unread = live
+  const unread = enriched
     .filter(
       (one) =>
         one.end.isStopped &&
         one.end.lastText !== "" &&
-        verdicts[one.s.sessionId]?.key !== verdictKeyOf(one) &&
+        verdicts[one.s.sessionId]?.key !== keyOf(one) &&
         !reading.has(one.s.sessionId),
     )
     .sort((a, b) => b.end.lastAt - a.end.lastAt)
@@ -113,11 +157,12 @@ async function readNewVerdicts(
   for (let index = 0; index < unread.length; index += READ_CONCURRENCY)
     await Promise.all(
       unread.slice(index, index + READ_CONCURRENCY).map(async (one) => {
+        const key = keyOf(one);
+        if (!(await claim($, `verdict:${one.s.sessionId}:${key}`))) return;
         reading.add(one.s.sessionId);
         try {
-          const verdict = await judge($, one);
-          if (verdict)
-            fresh[one.s.sessionId] = { key: verdictKeyOf(one), verdict };
+          const verdict = await judge($, one, one.context);
+          if (verdict) fresh[one.s.sessionId] = { key, verdict };
         } catch (error) {
           log($, `could not read "${one.s.title}": ${String(error)}`);
         } finally {
@@ -134,11 +179,19 @@ export async function load($: EngineInterface) {
   try {
     const now = Date.now();
     const live = await loadLive($, now);
-    const verdicts = await build($, live, now);
-    const [, , fresh] = await Promise.all([
-      refreshTickets($, live.map(({ s }) => ticketOf(s)).filter(Boolean)),
+    const { stores, enriched } = await build($, live, now);
+    const [, , , fresh] = await Promise.all([
+      refreshProjects($, live),
+      refreshTickets(
+        $,
+        enriched.flatMap((one) =>
+          one.ticket && one.context.project
+            ? [{ id: one.ticket, profile: one.context.project }]
+            : [],
+        ),
+      ),
       refreshPrs($, live),
-      readNewVerdicts($, live, verdicts),
+      readNewVerdicts($, enriched, stores.verdicts),
     ]);
     if (Object.keys(fresh).length > 0)
       await writeVerdicts($, fresh, new Set(live.map(({ s }) => s.sessionId)));

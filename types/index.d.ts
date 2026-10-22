@@ -2,14 +2,14 @@ export type VerdictStatus = "needs_you" | "waiting_on_others" | "done";
 
 export type AskKind = "do" | "decide" | "review";
 
-export type Urgency = "high" | "normal" | "low";
+export type Priority = "critical" | "high" | "normal" | "low";
 
 export type Verdict = {
   status: VerdictStatus;
   kind: AskKind | null;
   waitingFor: string;
   followUps: string[];
-  urgency: Urgency;
+  priority: Priority;
   isFinished: boolean;
 };
 
@@ -52,6 +52,8 @@ export type SessionCard = {
   lastAsk: string;
   lastAskAgoMs: number;
   lastReply: string;
+  question: string;
+  options: string[];
   isRunning: boolean;
   isScheduled: boolean;
   ageMs: number;

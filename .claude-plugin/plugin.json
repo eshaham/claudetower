@@ -8,7 +8,7 @@
     "ticketPrefixes": {
       "type": "string",
       "title": "Ticket prefixes",
-      "description": "Comma-separated issue-key prefixes to find in session titles and branches, e.g. ENG,OPS",
+      "description": "Optional. Comma-separated issue-key prefixes, e.g. ENG,OPS. Overrides the prefixes claudtower learns for each project.",
       "default": ""
     }
   }
