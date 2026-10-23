@@ -76,6 +76,10 @@ export const composing = atom(
   { plugin: "claudetower", key: "composing" } as const,
   "",
 );
+export const needsSetup = atom(
+  { plugin: "claudetower", key: "needsSetup" } as const,
+  false,
+);
 export const pending = atom(
   { plugin: "claudetower", key: "pending" } as const,
   {},
@@ -374,11 +378,23 @@ export async function openPane($: EngineInterface) {
   await $.ui.open({ id: PANE, title: "claudetower", columns: PANE_COLUMNS });
 }
 
+async function refreshSetupState($: EngineInterface) {
+  const isNeeded = (await findInstance($)) !== "" && !(await hasRankingFile($));
+  await update($, needsSetup, () => isNeeded);
+  return isNeeded;
+}
+
+export function readNeedsSetup($: EngineInterface) {
+  return read($, needsSetup);
+}
+
 export async function followOtherSessions($: EngineInterface) {
+  const isSettingUp = await refreshSetupState($);
   const wantsOpen =
     (await $.store.get(instanceKey(STORE_KEYS.isOpen))) !== false;
   const isUp = (await $.ui.panes()).some((pane) => pane.id === PANE);
-  if (wantsOpen && !isUp && (await hasRankingFile($))) await openPane($);
+  if (wantsOpen && !isUp && host.instance !== "" && !isSettingUp)
+    await openPane($);
   if (!wantsOpen && isUp) {
     await update($, isOpen, () => false);
     await $.ui.close({ id: PANE });
@@ -510,6 +526,7 @@ export async function startSetup($: EngineInterface) {
 
 export async function useDefaultRanking($: EngineInterface) {
   await writeRanking($, {});
+  await refreshSetupState($);
   await openPane($);
   await load($);
 }

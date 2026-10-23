@@ -10,6 +10,7 @@ import {
   readDraft,
   setDraft,
   readPending,
+  readNeedsSetup,
   sendText,
   startAction,
   togglePreview,
@@ -35,7 +36,7 @@ import {
   host,
 } from "../lib/config";
 import { isOpenPr } from "../lib/enrich";
-import { hasRankingFile, loadRanking } from "../lib/ranking";
+import { loadRanking } from "../lib/ranking";
 import { SETUP_TITLE, setupButtons } from "./setup";
 import {
   BUBBLE_BORDER,
@@ -107,7 +108,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     composingId,
     draftText,
     ranking,
-    hasRanking,
+    isSettingUp,
   ] = await Promise.all([
     readCards($),
     readPreviewed($),
@@ -115,7 +116,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     readComposing($),
     readDraft($),
     loadRanking($),
-    hasRankingFile($),
+    readNeedsSetup($),
   ]);
   const Input = "Input" in resolved ? resolved.Input : null;
   const isProcessing = (card: SessionCard) =>
@@ -392,7 +393,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     </Box>
   );
 
-  const setupCard = !hasRanking && host.instance !== "" && (
+  const setupCard = isSettingUp && (
     <Box
       flexDirection="column"
       borderStyle="round"

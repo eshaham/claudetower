@@ -147,7 +147,28 @@ export const sessionsRoot = () => sessionsRootOf(host.instance);
 
 export const instanceKey = (key: string) => `${host.instance}/${key}`;
 
+const DEFAULT_INSTANCE = "Claude";
+
+async function instanceOfApp($: EngineInterface) {
+  if (!host.appPid) return "";
+  const shown = await $.process.run([
+    "/bin/ps",
+    "-o",
+    "command=",
+    "-p",
+    host.appPid,
+  ]);
+  if (shown.exitCode !== 0) return "";
+  const dataDir = shown.stdout.match(/--user-data-dir=(.+?)(?= --|$)/m)?.[1];
+  const name = dataDir
+    ? (dataDir.trim().split("/").pop() ?? "")
+    : DEFAULT_INSTANCE;
+  return name && (await $.fs.exists(sessionsRootOf(name))) ? name : "";
+}
+
 export async function findInstance($: EngineInterface) {
+  if (host.instance) return host.instance;
+  host.instance = await instanceOfApp($);
   if (host.instance || !host.selfCliId) return host.instance;
   const candidates = (await $.fs.list(`${host.home}/${APP_SUPPORT}`))
     .filter((entry) => entry.kind === "dir")

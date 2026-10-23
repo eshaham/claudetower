@@ -92,6 +92,7 @@ declare module "claude-code" {
       isOpen: boolean;
       previewed: string;
       pending: Record<string, number>;
+      needsSetup: boolean;
       composing: string;
       draft: string;
     };

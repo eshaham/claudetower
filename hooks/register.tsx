@@ -10,6 +10,7 @@ import {
   openPane,
   openSession,
   poll,
+  readNeedsSetup,
   setPaneOpen,
   toggleCompose,
   togglePreview,
@@ -21,7 +22,6 @@ import {
   PLUGIN,
   POLL_MS,
   discoverHost,
-  host,
   log,
   setTicketPrefixes,
 } from "./lib/config";
@@ -30,7 +30,6 @@ import {
   RANKING_TOOL_SPEC,
   runRankingTool,
 } from "./lib/ranking-tool";
-import { hasRankingFile } from "./lib/ranking";
 import { renderAbovePrompt } from "./view/above-prompt";
 import { renderPane } from "./view/pane";
 import { renderSetupBand } from "./view/setup";
@@ -124,8 +123,7 @@ export const register: Register = (on, options) => {
 
   on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e);
-    if (host.instance && !(await hasRankingFile($)))
-      return renderSetupBand($, e);
+    if (await readNeedsSetup($)) return renderSetupBand($, e);
     return (await isPaneOpen($)) ? next(e) : renderAbovePrompt($, e);
   });
 
