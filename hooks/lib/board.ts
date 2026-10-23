@@ -37,6 +37,8 @@ import {
   refreshProjects,
   ticketPatternOf,
 } from "./project";
+import type { Ranking } from "./ranking";
+import { loadRanking, readingFingerprintOf } from "./ranking";
 import type { Live } from "./transcript";
 import {
   loadLive,
@@ -79,6 +81,7 @@ type Stores = {
   tickets: TicketStore;
   prs: PrStore;
   projects: Record<string, ProjectProfile>;
+  ranking: Ranking;
 };
 
 type Enriched = Live & { context: VerdictContext; ticket: string };
@@ -96,27 +99,38 @@ const fromParagraphStart = (text: string, limit: number) => {
 };
 
 async function readStores($: EngineInterface): Promise<Stores> {
-  const [verdicts, tickets, prs, projects] = await Promise.all([
+  const [verdicts, tickets, prs, projects, ranking] = await Promise.all([
     readVerdicts($),
     readTickets($),
     readPrs($),
     readProjects($),
+    loadRanking($),
   ]);
-  return { verdicts, tickets, prs, projects };
+  return { verdicts, tickets, prs, projects, ranking };
 }
 
-const enrich = (live: Live[], stores: Stores): Enriched[] =>
-  live.map((one) => {
+const enrich = (live: Live[], stores: Stores): Enriched[] => {
+  const rankingFingerprint = readingFingerprintOf(stores.ranking);
+  return live.map((one) => {
     const project = stores.projects[projectRootOf(one.s)];
     const openPrs = prBadgesOf(one.s.prs, stores.prs)
       .filter((pr) => isOpenPr(pr.state))
       .map((pr) => pr.number);
+    const ticket = ticketOf(one.s, ticketPatternOf(project));
+    const info = stores.tickets[ticket];
     return {
       ...one,
-      ticket: ticketOf(one.s, ticketPatternOf(project)),
-      context: { openPrs, project },
+      ticket,
+      context: {
+        openPrs,
+        project,
+        ticket: ticket && info ? { ...info, id: ticket } : null,
+        ranking: stores.ranking,
+        rankingFingerprint,
+      },
     };
   });
+};
 
 const keyOf = (one: Enriched) => verdictKeyOf(one, one.context);
 
@@ -130,28 +144,31 @@ const cardOf = (one: Enriched, now: number, stores: Stores): SessionCard => {
         ? SILENT_STOP
         : null;
   const info = stores.tickets[ticket];
-  return classify({
-    id: s.sessionId,
-    cliId: s.cliSessionId ?? "",
-    title: titleOf(s, ticket),
-    project: projectOf(s),
-    ticket,
-    ticketStatus: info?.status ?? "",
-    ticketPriority: info?.isOpen ? info.priority : 0,
-    prs: prBadgesOf(s.prs, stores.prs),
-    uncommittedFiles: end.uncommittedFiles,
-    lastAsk: end.prompt,
-    lastAskAgoMs: end.promptAt ? now - end.promptAt : 0,
-    lastReply: fromParagraphStart(end.lastText, PREVIEW_REPLY_CHARS),
-    question: end.question,
-    options: end.options,
-    isRunning: !end.isStopped,
-    isScheduled: Boolean(s.scheduledTaskId),
-    ageMs: now - end.lastAt,
-    lastAt: end.lastAt,
-    verdict: current ?? stored?.verdict ?? null,
-    isRereading: end.isStopped && current === null,
-  });
+  return classify(
+    {
+      id: s.sessionId,
+      cliId: s.cliSessionId ?? "",
+      title: titleOf(s, ticket),
+      project: projectOf(s),
+      ticket,
+      ticketStatus: info?.status ?? "",
+      ticketPriority: info?.isOpen ? info.priority : 0,
+      prs: prBadgesOf(s.prs, stores.prs),
+      uncommittedFiles: end.uncommittedFiles,
+      lastAsk: end.prompt,
+      lastAskAgoMs: end.promptAt ? now - end.promptAt : 0,
+      lastReply: fromParagraphStart(end.lastText, PREVIEW_REPLY_CHARS),
+      question: end.question,
+      options: end.options,
+      isRunning: !end.isStopped,
+      isScheduled: Boolean(s.scheduledTaskId),
+      ageMs: now - end.lastAt,
+      lastAt: end.lastAt,
+      verdict: current ?? stored?.verdict ?? null,
+      isRereading: end.isStopped && current === null,
+    },
+    stores.ranking,
+  );
 };
 
 async function build($: EngineInterface, live: Live[], now: number) {

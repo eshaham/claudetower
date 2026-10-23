@@ -39,7 +39,7 @@ export const CARDS_PER_LANE = 8;
 export const VERDICT_MODEL = "sonnet";
 
 export const STORE_KEYS = {
-  verdicts: "verdicts-v9",
+  verdicts: "verdicts-v10",
   claims: "claims",
   tickets: "tickets-v2",
   prs: "prs",

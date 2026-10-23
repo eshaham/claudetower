@@ -1,78 +1,69 @@
-import type {
-  LaneId,
-  PrBadge,
-  SessionCard,
-  Priority,
-  Verdict,
-} from "../../types";
+import type { LaneId, PrBadge, SessionCard, Verdict } from "../../types";
 import { HOUR_MS } from "./config";
 import { isOpenPr } from "./enrich";
+import type { Ranking } from "./ranking";
+import { bandOf } from "./ranking";
 
-export type CardFacts = Omit<SessionCard, "lane" | "canArchive" | "score">;
+export type CardFacts = Omit<
+  SessionCard,
+  "lane" | "canArchive" | "isFinishing" | "band" | "score"
+>;
 
 export const LANES: {
   id: LaneId;
   title: string;
   hint: string;
   color: string;
-  boost: number;
+  asksYou: boolean;
 }[] = [
   {
     id: "answer",
     title: "Answer",
     hint: "A question or a go-ahead only you can give",
     color: "suggestion",
-    boost: 60,
+    asksYou: true,
   },
   {
     id: "act",
     title: "Act",
     hint: "Something you do outside the session",
     color: "error",
-    boost: 60,
+    asksYou: true,
   },
   {
     id: "review",
     title: "Review",
     hint: "Look at what it produced",
     color: "warning",
-    boost: 60,
+    asksYou: true,
   },
   {
     id: "follow-up",
     title: "Follow up",
     hint: "Its part is done; a next step is yours",
     color: "claude",
-    boost: 40,
+    asksYou: true,
   },
   {
     id: "in-flight",
     title: "In flight",
     hint: "Running, or waiting on CI, a bot or someone else",
     color: "subtle",
-    boost: 0,
+    asksYou: false,
   },
   {
     id: "wrap-up",
     title: "Wrap up",
     hint: "Finished; archive, or clear what is left",
     color: "success",
-    boost: 0,
+    asksYou: false,
   },
 ];
 
 const LANE_BY_ID = Object.fromEntries(LANES.map((lane) => [lane.id, lane]));
 export const laneInfo = (id: LaneId) => LANE_BY_ID[id]!;
 
-const RECENCY_WEIGHT = 100;
-const RECENCY_HALF_LIFE_HOURS = 48;
-const TICKET_PRIORITY_BOOST: Record<number, number> = { 1: 80, 2: 50, 3: 20 };
-const PRIORITY_BOOST: Record<Priority, number> = {
-  critical: 200,
-  high: 80,
-  normal: 0,
-  low: -30,
-};
+const UNREAD_URGENCY = 50;
 
 const followUpOf = (verdict: Verdict | null) =>
   verdict && verdict.status !== "needs_you" ? (verdict.followUps[0] ?? "") : "";
@@ -106,24 +97,43 @@ const laneOf = (facts: CardFacts, canArchive: boolean): LaneId => {
   return "wrap-up";
 };
 
-export const classify = (facts: CardFacts): SessionCard => {
+const recencyOf = (ranking: Ranking, ageMs: number) =>
+  ranking.recency.floor +
+  (1 - ranking.recency.floor) *
+    0.5 ** (ageMs / HOUR_MS / ranking.recency.halfLifeHours);
+
+export const classify = (facts: CardFacts, ranking: Ranking): SessionCard => {
   const canArchive = canArchiveOf(facts);
   const lane = laneOf(facts, canArchive);
-  const score =
-    RECENCY_WEIGHT * 0.5 ** (facts.ageMs / HOUR_MS / RECENCY_HALF_LIFE_HOURS) +
-    (TICKET_PRIORITY_BOOST[facts.ticketPriority] ?? 0) +
-    (facts.verdict ? (PRIORITY_BOOST[facts.verdict.priority] ?? 0) : 0) +
-    laneInfo(lane).boost;
-  return { ...facts, lane, canArchive, score };
+  const urgency = facts.verdict?.urgency ?? UNREAD_URGENCY;
+  const band = bandOf(ranking, urgency);
+  return {
+    ...facts,
+    lane,
+    canArchive,
+    isFinishing:
+      !facts.isRunning &&
+      !facts.isScheduled &&
+      (canArchive || facts.verdict?.isLastMile === true),
+    band:
+      facts.verdict && band.color
+        ? { name: band.name, color: band.color }
+        : null,
+    score: urgency * recencyOf(ranking, facts.ageMs) * ranking.lanes[lane],
+  };
 };
 
-export const isAskingYou = (card: SessionCard) => laneInfo(card.lane).boost > 0;
+export const isAskingYou = (card: SessionCard) => laneInfo(card.lane).asksYou;
 
-export const belongsInList = (card: SessionCard) =>
+export const belongsInList = (card: SessionCard, ranking: Ranking) =>
   !card.isRunning &&
   card.verdict !== null &&
   !card.isRereading &&
-  !(card.isScheduled && card.verdict.status === "done");
+  !(
+    card.isScheduled &&
+    ranking.scheduledTasks === "problems-only" &&
+    card.verdict.status === "done"
+  );
 
 export const isUnread = (card: SessionCard) =>
   !card.isRunning && card.verdict === null;
@@ -146,10 +156,3 @@ export const reasonOf = (card: SessionCard) => {
 
 export const badgeOf = (card: SessionCard) =>
   card.isRunning || card.lane === "wrap-up" ? null : laneInfo(card.lane);
-
-export const PRIORITY_BADGES: Partial<
-  Record<Priority, { label: string; color: string }>
-> = {
-  critical: { label: "Critical", color: "error" },
-  high: { label: "High", color: "warning" },
-};

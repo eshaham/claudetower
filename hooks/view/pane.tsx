@@ -16,7 +16,6 @@ import {
 } from "../lib/board";
 import {
   LANES,
-  PRIORITY_BADGES,
   badgeOf,
   belongsInList,
   isAskingYou,
@@ -36,6 +35,7 @@ import {
   host,
 } from "../lib/config";
 import { isOpenPr } from "../lib/enrich";
+import { loadRanking } from "../lib/ranking";
 import {
   BUBBLE_BORDER,
   CHEVRON_SIZE,
@@ -99,13 +99,14 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
   const { Box, Text, Button, Markdown } = resolved;
   const Svg = "Svg" in resolved ? resolved.Svg : null;
   const Client = "Client" in resolved ? resolved.Client : null;
-  const [list, previewedId, pendingAt, composingId, draftText] =
+  const [list, previewedId, pendingAt, composingId, draftText, ranking] =
     await Promise.all([
       readCards($),
       readPreviewed($),
       readPending($),
       readComposing($),
       readDraft($),
+      loadRanking($),
     ]);
   const Input = "Input" in resolved ? resolved.Input : null;
   const isProcessing = (card: SessionCard) =>
@@ -116,18 +117,23 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
   const isSelf = (card: SessionCard) => card.cliId === host.selfCliId;
   const self = list.find(isSelf);
   const others = list.filter((card) => !isSelf(card));
-  const ranked = others.filter(belongsInList);
+  const listed = others.filter((card) => belongsInList(card, ranking));
+  const ranked = listed.filter((card) => !card.isFinishing);
+  const finishing = listed
+    .filter((card) => card.isFinishing)
+    .sort((a, b) => b.ageMs - a.ageMs);
   const running = others.filter(
     (card) => card.isRunning && card.ageMs < FRESH_MS,
   );
   const asking = ranked.filter(isAskingYou).length;
-  const archivable = ranked.filter((card) => card.canArchive).length;
   const unread = others.filter(isUnread).length;
 
   const summary = (
     <Box flexDirection="row" columnGap={1}>
       <Text weight="semibold">{asking} need you</Text>
-      {archivable > 0 && <Text dimColor>· {archivable} to archive</Text>}
+      {finishing.length > 0 && (
+        <Text dimColor>· {finishing.length} to finish</Text>
+      )}
       {unread > 0 && <Text dimColor>· reading {unread}…</Text>}
     </Box>
   );
@@ -191,15 +197,12 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
 
   const reason = (card: SessionCard) => {
     const badge = badgeOf(card);
-    const priority =
-      !card.isRunning && card.verdict
-        ? PRIORITY_BADGES[card.verdict.priority]
-        : undefined;
+    const band = card.isRunning ? null : card.band;
     return (
       <Text wrap="wrap">
-        {priority && (
-          <Text color={priority.color} weight="semibold">
-            {priority.label}{" "}
+        {band && (
+          <Text color={band.color} weight="semibold">
+            {band.name}{" "}
           </Text>
         )}
         {badge && (
@@ -291,6 +294,11 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
         <Text dimColor size="caption" wrap="wrap">
           {factsLine(card)}
         </Text>
+        {card.verdict && card.verdict.labels.length > 0 && (
+          <Text color="subtle" size="caption" wrap="wrap">
+            {card.verdict.labels.join(" · ")}
+          </Text>
+        )}
         {prLines(card)}
         {reason(card)}
         {Svg && canCompose(card) && (
@@ -384,7 +392,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
         {summary}
         <Box flexDirection="row" columnGap={1}>
           {LANES.map((lane) => {
-            const items = [...ranked, ...running].filter(
+            const items = [...finishing, ...ranked, ...running].filter(
               (card) => card.lane === lane.id,
             );
             return (
@@ -424,6 +432,17 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
         </Box>
       )}
       {summary}
+      {finishing.length > 0 && (
+        <Box flexDirection="column" rowGap={1}>
+          {heading(`Finish (${finishing.length})`)}
+          {finishing.slice(0, ranking.finish.show).map(cardView)}
+          {finishing.length > ranking.finish.show && (
+            <Text dimColor>
+              +{finishing.length - ranking.finish.show} more to finish
+            </Text>
+          )}
+        </Box>
+      )}
       {ranked.slice(0, CARD_LIMIT).map(cardView)}
       {ranked.length > CARD_LIMIT && (
         <Text dimColor>+{ranked.length - CARD_LIMIT} more</Text>

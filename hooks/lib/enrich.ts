@@ -96,10 +96,11 @@ async function lookUpTicket(
 ) {
   const lookup = profile.issueLookup;
   if (!lookup) return null;
-  const called = await $.tool.call({
+  const input = {
     tool: lookup.tool,
     [lookup.idArgument]: id,
-  });
+  } as Parameters<EngineInterface["tool"]["call"]>[0];
+  const called = await $.tool.call(input);
   if (called.deny !== undefined || called.isError || !called.text) {
     log(
       $,

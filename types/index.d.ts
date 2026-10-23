@@ -2,16 +2,18 @@ export type VerdictStatus = "needs_you" | "waiting_on_others" | "done";
 
 export type AskKind = "do" | "decide" | "review";
 
-export type Priority = "critical" | "high" | "normal" | "low";
-
 export type Verdict = {
   status: VerdictStatus;
   kind: AskKind | null;
   waitingFor: string;
   followUps: string[];
-  priority: Priority;
+  urgency: number;
+  labels: string[];
+  isLastMile: boolean;
   isFinished: boolean;
 };
+
+export type BandBadge = { name: string; color?: string };
 
 export type TicketInfo = {
   priority: number;
@@ -34,12 +36,7 @@ export type PrBadge = {
 export type SessionAction = { label: string; message: string };
 
 export type LaneId =
-  | "answer"
-  | "act"
-  | "review"
-  | "follow-up"
-  | "in-flight"
-  | "wrap-up";
+  "answer" | "act" | "review" | "follow-up" | "in-flight" | "wrap-up";
 
 export type SessionCard = {
   id: string;
@@ -64,6 +61,8 @@ export type SessionCard = {
   isRereading: boolean;
   lane: LaneId;
   canArchive: boolean;
+  isFinishing: boolean;
+  band: BandBadge | null;
   score: number;
 };
 
