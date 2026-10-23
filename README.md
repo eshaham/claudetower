@@ -6,6 +6,8 @@ It sits beside the chat in each session. It reads the desktop app's own session 
 
 ## What it shows
 
+The panel lists the sessions of the Desktop instance it runs in. If you run more than one instance, each with its own data folder, each panel shows only its own sessions.
+
 Each stopped session gets one card with:
 
 - The project, the ticket and its tracker priority (when the session names one), uncommitted files, and how long ago it last spoke.

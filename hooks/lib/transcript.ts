@@ -13,6 +13,7 @@ import {
   host,
   log,
   sessionsRoot,
+  instanceKey,
 } from "./config";
 
 export type SessionPr = { prNumber?: number; state?: string; repo?: string };
@@ -383,12 +384,13 @@ async function shareEnds(
     (path) => mine[path] && mine[path].mtimeMs !== shared[path]?.mtimeMs,
   );
   if (changed || Object.keys(shared).some((path) => !paths.includes(path)))
-    await $.store.set(STORE_KEYS.ends, mine);
+    await $.store.set(instanceKey(STORE_KEYS.ends), mine);
 }
 
 export async function loadLive($: EngineInterface, now: number) {
   const files = await loadSessionFiles($, now);
-  const shared = ((await $.store.get(STORE_KEYS.ends)) ?? {}) as EndStore;
+  const shared = ((await $.store.get(instanceKey(STORE_KEYS.ends))) ??
+    {}) as EndStore;
   const ends = await Promise.all(
     files.map((s) => transcriptEndOf($, s, now, shared)),
   );

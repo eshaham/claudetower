@@ -55,7 +55,8 @@ export const GH_TIMEOUT_MS = 15 * SECOND_MS;
 
 export const ARCHIVE_SESSION = "mcp__ccd_session_mgmt__archive_session";
 
-const SESSIONS_ROOT = "Library/Application Support/Claude/claude-code-sessions";
+const APP_SUPPORT = "Library/Application Support";
+const SESSIONS_DIR = "claude-code-sessions";
 
 export type McpToolName = `mcp__${string}__${string}`;
 
@@ -68,9 +69,17 @@ export const host: {
   home: string;
   gh: string;
   selfCliId: string;
+  instance: string;
   tools: ToolSummary[];
   ticketPrefixOverride: string[];
-} = { home: "", gh: "", selfCliId: "", tools: [], ticketPrefixOverride: [] };
+} = {
+  home: "",
+  gh: "",
+  selfCliId: "",
+  instance: "",
+  tools: [],
+  ticketPrefixOverride: [],
+};
 
 export function log($: EngineInterface, message: string) {
   $.ui.log(`${PLUGIN}: ${message}`, { to: "debug" });
@@ -107,6 +116,7 @@ export async function discoverHost($: EngineInterface) {
   host.home = home.stdout.trim();
   host.gh = gh;
   host.selfCliId = selfCliId;
+  await findInstance($);
   if (!host.gh) log($, "gh not found; PR details are off");
 }
 
@@ -117,6 +127,38 @@ export async function loadTools($: EngineInterface) {
     .map((tool) => ({ name: tool.name, description: tool.description }));
 }
 
-export const sessionsRoot = () => `${host.home}/${SESSIONS_ROOT}`;
+const sessionsRootOf = (instance: string) =>
+  `${host.home}/${APP_SUPPORT}/${instance}/${SESSIONS_DIR}`;
+
+export const sessionsRoot = () => sessionsRootOf(host.instance);
+
+export const instanceKey = (key: string) => `${host.instance}/${key}`;
+
+export async function findInstance($: EngineInterface) {
+  if (host.instance || !host.selfCliId) return host.instance;
+  const candidates = (await $.fs.list(`${host.home}/${APP_SUPPORT}`))
+    .filter((entry) => entry.kind === "dir")
+    .map((entry) => entry.name);
+  const instances = (
+    await Promise.all(
+      candidates.map(async (name) =>
+        (await $.fs.exists(sessionsRootOf(name))) ? [name] : [],
+      ),
+    )
+  ).flat();
+  if (instances.length === 0) return "";
+  const found = await $.process.run([
+    "/usr/bin/grep",
+    "-rlF",
+    "--include=local_*.json",
+    `"cliSessionId":"${host.selfCliId}"`,
+    ...instances.map(sessionsRootOf),
+  ]);
+  const match = found.stdout.split("\n").find(Boolean) ?? "";
+  host.instance =
+    instances.find((name) => match.startsWith(`${sessionsRootOf(name)}/`)) ??
+    "";
+  return host.instance;
+}
 
 export const inboxDir = () => `${host.home}/.claude/claudetower/inbox`;

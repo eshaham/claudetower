@@ -17,6 +17,8 @@ import {
   READS_PER_POLL,
   STORE_KEYS,
   log,
+  instanceKey,
+  findInstance,
 } from "./config";
 import type { PrStore, TicketStore } from "./enrich";
 import {
@@ -214,7 +216,7 @@ function inBackground(
 }
 
 export async function load($: EngineInterface) {
-  if (isLoading) return;
+  if (isLoading || !(await findInstance($))) return;
   isLoading = true;
   try {
     const now = Date.now();
@@ -271,7 +273,7 @@ export function togglePreview($: EngineInterface, id: string) {
 
 export async function setPaneOpen($: EngineInterface, value: boolean) {
   await update($, isOpen, () => value);
-  await $.store.set(STORE_KEYS.isOpen, value);
+  await $.store.set(instanceKey(STORE_KEYS.isOpen), value);
 }
 
 export async function openPane($: EngineInterface) {
@@ -280,7 +282,9 @@ export async function openPane($: EngineInterface) {
 }
 
 export async function followOtherSessions($: EngineInterface) {
-  const wantsOpen = (await $.store.get(STORE_KEYS.isOpen)) !== false;
+  if (!(await findInstance($))) return;
+  const wantsOpen =
+    (await $.store.get(instanceKey(STORE_KEYS.isOpen))) !== false;
   const isUp = (await $.ui.panes()).some((pane) => pane.id === PANE);
   if (wantsOpen && !isUp && (await $.session.surfaces()).length > 0)
     await openPane($);

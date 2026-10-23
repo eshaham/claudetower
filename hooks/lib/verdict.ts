@@ -7,6 +7,7 @@ import {
   STORE_KEYS,
   VERDICT_MODEL,
   log,
+  instanceKey,
 } from "./config";
 import type { ProjectProfile } from "./project";
 import type { Live, SessionFile, TranscriptEnd } from "./transcript";
@@ -121,7 +122,8 @@ export const verdictKeyOf = ({ s, end }: Live, context: VerdictContext) =>
   ].join(":");
 
 export async function readVerdicts($: EngineInterface) {
-  return ((await $.store.get(STORE_KEYS.verdicts)) ?? {}) as VerdictStore;
+  return ((await $.store.get(instanceKey(STORE_KEYS.verdicts))) ??
+    {}) as VerdictStore;
 }
 
 export async function writeVerdicts(
@@ -133,7 +135,7 @@ export async function writeVerdicts(
   const merged = Object.fromEntries(
     Object.entries({ ...stored, ...fresh }).filter(([id]) => liveIds.has(id)),
   );
-  await $.store.set(STORE_KEYS.verdicts, merged);
+  await $.store.set(instanceKey(STORE_KEYS.verdicts), merged);
 }
 
 async function promptOf(
