@@ -12,8 +12,6 @@ import {
   readPending,
   sendText,
   startAction,
-  startSetup,
-  useDefaultRanking,
   togglePreview,
 } from "../lib/board";
 import {
@@ -38,6 +36,7 @@ import {
 } from "../lib/config";
 import { isOpenPr } from "../lib/enrich";
 import { hasRankingFile, loadRanking } from "../lib/ranking";
+import { SETUP_TITLE, setupButtons } from "./setup";
 import {
   BUBBLE_BORDER,
   CHEVRON_SIZE,
@@ -394,25 +393,22 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
   );
 
   const setupCard = !hasRanking && host.instance !== "" && (
-    <Box flexDirection="column" borderStyle="round" paddingX={1} rowGap={1}>
-      <Text weight="semibold">Rank sessions your way</Text>
+    <Box
+      flexDirection="column"
+      borderStyle="round"
+      borderColor="claude"
+      paddingX={1}
+      rowGap={1}
+    >
+      <Text weight="semibold" color="claude">
+        {SETUP_TITLE}
+      </Text>
       <Text wrap="wrap">
         claudetower ranks your sessions with a default that works for anyone.
         Tell it what matters to you in a short setup, run in a new session.
       </Text>
       <Box flexDirection="row" columnGap={1}>
-        <Button
-          key="setup-start"
-          variant="primary"
-          label="Set up"
-          onPress={() => startSetup($)}
-        />
-        <Button
-          key="setup-default"
-          variant="secondary"
-          label="Use the default"
-          onPress={() => useDefaultRanking($)}
-        />
+        {setupButtons($, resolved, "pane")}
       </Box>
     </Box>
   );

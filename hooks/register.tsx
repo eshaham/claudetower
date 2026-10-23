@@ -21,6 +21,7 @@ import {
   PLUGIN,
   POLL_MS,
   discoverHost,
+  host,
   log,
   setTicketPrefixes,
 } from "./lib/config";
@@ -29,8 +30,10 @@ import {
   RANKING_TOOL_SPEC,
   runRankingTool,
 } from "./lib/ranking-tool";
+import { hasRankingFile } from "./lib/ranking";
 import { renderAbovePrompt } from "./view/above-prompt";
 import { renderPane } from "./view/pane";
+import { renderSetupBand } from "./view/setup";
 
 export const register: Register = (on, options) => {
   setTicketPrefixes(String(options.ticketPrefixes ?? ""));
@@ -119,11 +122,12 @@ export const register: Register = (on, options) => {
     return closed;
   });
 
-  on("ui.render", { component: "AbovePrompt" }, async ($, e, next) =>
-    e.props.hasSurvey || (await isPaneOpen($))
-      ? next(e)
-      : renderAbovePrompt($, e),
-  );
+  on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
+    if (e.props.hasSurvey) return next(e);
+    if (host.instance && !(await hasRankingFile($)))
+      return renderSetupBand($, e);
+    return (await isPaneOpen($)) ? next(e) : renderAbovePrompt($, e);
+  });
 
   on("ui.render", { component: "Pane", requestId: PANE }, ($, e) =>
     renderPane($, e),
