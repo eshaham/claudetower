@@ -38,7 +38,12 @@ import {
   ticketPatternOf,
 } from "./project";
 import type { Ranking } from "./ranking";
-import { loadRanking, readingFingerprintOf, writeRanking } from "./ranking";
+import {
+  hasRankingFile,
+  loadRanking,
+  readingFingerprintOf,
+  writeRanking,
+} from "./ranking";
 import type { Live } from "./transcript";
 import {
   loadLive,
@@ -373,7 +378,7 @@ export async function followOtherSessions($: EngineInterface) {
   const wantsOpen =
     (await $.store.get(instanceKey(STORE_KEYS.isOpen))) !== false;
   const isUp = (await $.ui.panes()).some((pane) => pane.id === PANE);
-  if (wantsOpen && !isUp) await openPane($);
+  if (wantsOpen && !isUp && (await hasRankingFile($))) await openPane($);
   if (!wantsOpen && isUp) {
     await update($, isOpen, () => false);
     await $.ui.close({ id: PANE });
@@ -505,5 +510,6 @@ export async function startSetup($: EngineInterface) {
 
 export async function useDefaultRanking($: EngineInterface) {
   await writeRanking($, {});
+  await openPane($);
   await load($);
 }

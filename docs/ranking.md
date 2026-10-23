@@ -102,7 +102,9 @@ The `claudetower:ranking` skill is how anyone changes the file, any time: say wh
 
 ## First run
 
-When an instance has no ranking file, the panel shows a setup card:
+Until an instance has a ranking file, claudetower does not open its panel. Instead, the band above the chat input in every session of that instance shows a setup prompt:
 
-- **Set up** asks, in the session you are in, to start a new session that runs the setup. The setup goes through the ranking skill as an interview, then offers to allow archiving directly (see the README).
-- **Use defaults** writes the default file and hides the card.
+- **Set up** asks, in the session you are in, to start a new session that runs the setup. The setup goes through the ranking skill as an interview, then offers to allow archiving directly (see the README). Once it saves, the panel opens in every session within a refresh.
+- **Use the default** writes the default file and opens the panel.
+
+`/tower` still opens the panel before setup; it then shows the same choice as a card at the top.

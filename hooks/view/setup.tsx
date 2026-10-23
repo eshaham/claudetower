@@ -37,7 +37,7 @@ export function renderSetupBand(
         {SETUP_TITLE}
       </Text>
       <Text dimColor wrap="truncate-end">
-        · claudetower is using its default ranking
+        · choose how claudetower ranks your sessions, then its panel opens
       </Text>
       {setupButtons($, elements, "band")}
     </Box>
