@@ -381,6 +381,7 @@ export async function openPane($: EngineInterface) {
 async function refreshSetupState($: EngineInterface) {
   const isNeeded = (await findInstance($)) !== "" && !(await hasRankingFile($));
   await update($, needsSetup, () => isNeeded);
+  return isNeeded;
 }
 
 export function readNeedsSetup($: EngineInterface) {
@@ -388,8 +389,9 @@ export function readNeedsSetup($: EngineInterface) {
 }
 
 export async function followOtherSessions($: EngineInterface) {
-  await refreshSetupState($);
+  const isSettingUp = await refreshSetupState($);
   const wantsOpen =
+    isSettingUp ||
     (await $.store.get(instanceKey(STORE_KEYS.isOpen))) !== false;
   const isUp = (await $.ui.panes()).some((pane) => pane.id === PANE);
   if (wantsOpen && !isUp) await openPane($);
