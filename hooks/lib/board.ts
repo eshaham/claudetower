@@ -38,7 +38,14 @@ import {
   ticketPatternOf,
 } from "./project";
 import type { Live } from "./transcript";
-import { loadLive, projectOf, ticketOf, titleOf } from "./transcript";
+import {
+  loadLive,
+  projectOf,
+  sessionDirs,
+  ticketOf,
+  titleOf,
+  transcriptPath,
+} from "./transcript";
 import type { VerdictContext, VerdictStore } from "./verdict";
 import {
   SILENT_STOP,
@@ -78,6 +85,8 @@ type Enriched = Live & { context: VerdictContext; ticket: string };
 
 const reading = new Set<string>();
 let isLoading = false;
+let watched: string[] = [];
+let lastSeen = "";
 
 const fromParagraphStart = (text: string, limit: number) => {
   if (text.length <= limit) return text;
@@ -234,13 +243,29 @@ export async function load($: EngineInterface) {
       ),
     );
     inBackground($, "prs", () => refreshPrs($, live));
-    const fresh = await readNewVerdicts($, enriched, stores.verdicts);
-    if (Object.keys(fresh).length > 0)
+    inBackground($, "verdicts", async () => {
+      const fresh = await readNewVerdicts($, enriched, stores.verdicts);
+      if (Object.keys(fresh).length === 0) return;
       await writeVerdicts($, fresh, new Set(live.map(({ s }) => s.sessionId)));
-    await build($, live, now);
+      await load($);
+    });
+    watched = [
+      ...(await sessionDirs($)),
+      ...live.map(({ s }) => transcriptPath(s)),
+    ];
   } finally {
     isLoading = false;
   }
+}
+
+export async function loadOnChange($: EngineInterface) {
+  if (watched.length === 0 || isLoading) return;
+  const stats = await $.process.run(["/usr/bin/stat", "-f", "%Fm", ...watched]);
+  const seen = stats.stdout;
+  if (seen === lastSeen) return;
+  const isFirst = lastSeen === "";
+  lastSeen = seen;
+  if (!isFirst) await load($);
 }
 
 const SEND_URL_TO_PID = `ObjC.import("AppKit");

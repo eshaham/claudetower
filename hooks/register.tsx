@@ -6,6 +6,7 @@ import {
   followOtherSessions,
   isPaneOpen,
   load,
+  loadOnChange,
   openPane,
   openSession,
   poll,
@@ -14,6 +15,7 @@ import {
   togglePreview,
 } from "./lib/board";
 import {
+  CHANGE_CHECK_MS,
   INBOX_POLL_MS,
   PANE,
   POLL_MS,
@@ -40,6 +42,11 @@ export const register: Register = (on, options) => {
         $.clock.every(POLL_MS, () =>
           poll($).catch((error: unknown) =>
             log($, `could not refresh: ${String(error)}`),
+          ),
+        );
+        $.clock.every(CHANGE_CHECK_MS, () =>
+          loadOnChange($).catch((error: unknown) =>
+            log($, `could not check for changes: ${String(error)}`),
           ),
         );
         $.clock.every(INBOX_POLL_MS, () =>

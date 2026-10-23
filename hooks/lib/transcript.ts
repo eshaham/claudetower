@@ -268,7 +268,7 @@ async function readTranscriptEnd(
   };
 }
 
-async function sessionDirs($: EngineInterface) {
+export async function sessionDirs($: EngineInterface) {
   const root = sessionsRoot();
   if (!(await $.fs.exists(root))) return [];
   const accounts = (await $.fs.list(root)).filter(
