@@ -14,7 +14,7 @@ Each stopped session gets one card with:
 - Its pull requests: an icon and diff size for each open PR, with failing or running checks, and a count of merged ones.
 - What it's waiting for, labeled **Answer**, **Act**, **Review**, **Follow up**, **In flight** or **Wrap up**, with a **Critical** or **High** label when the task is serious.
 - The options the session offered you at the end (its question and buttons), so you can see the choice without opening it.
-- An **Archive** button once the session is finished: no open PR, no uncommitted files, and nothing left for you. It asks that session to archive itself, so the request goes through the session's own permission checks.
+- An **Archive** button once the session is finished: no open PR, no uncommitted files, and nothing left for you. When your settings allow `mcp__ccd_session_mgmt__archive_session`, it archives the session at once; otherwise it asks that session to archive itself, so the request goes through the session's own permission checks.
 - A chevron that expands your last message and Claude's reply.
 
 The session you're in sits in a **This session** section at the top. Widen the panel past 100 columns and it switches to a board with one lane per label.

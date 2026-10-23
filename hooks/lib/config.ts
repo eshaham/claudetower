@@ -54,6 +54,8 @@ export const PR_TTL_MS = 5 * MINUTE_MS;
 export const PR_LOOKUPS_PER_POLL = 4;
 export const GH_TIMEOUT_MS = 15 * SECOND_MS;
 
+export const ARCHIVE_SESSION = "mcp__ccd_session_mgmt__archive_session";
+
 const APP_SUPPORT = "Library/Application Support";
 const SESSIONS_DIR = "claude-code-sessions";
 

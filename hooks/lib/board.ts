@@ -4,6 +4,7 @@ import type { EngineInterface } from "claude-code";
 import type { SessionAction, SessionCard } from "../../types";
 import { classify } from "./classify";
 import {
+  ARCHIVE_SESSION,
   ANSWER_CHECK_MS,
   ANSWER_PICKUP_MS,
   inboxDir,
@@ -310,8 +311,31 @@ const ARCHIVE_ACTION: SessionAction = {
   message: "Archive this session.",
 };
 
-export function archiveSession($: EngineInterface, card: SessionCard) {
-  startAction($, card, ARCHIVE_ACTION);
+async function archiveDirectly($: EngineInterface, card: SessionCard) {
+  const input = {
+    session_id: card.id,
+    reason: card.verdict?.waitingFor || "Finished with nothing left to do",
+  };
+  const { decision } = await $.tool.check({ tool: ARCHIVE_SESSION, input });
+  if (decision !== "allow") return false;
+  const archived = await $.tool.call({ tool: ARCHIVE_SESSION, ...input });
+  if (archived.deny !== undefined || archived.isError) {
+    log(
+      $,
+      `could not archive "${card.title}": ${archived.deny ?? archived.text ?? "no answer"}`,
+    );
+    return false;
+  }
+  await update($, cards, (list) => list.filter((one) => one.id !== card.id));
+  return true;
+}
+
+export async function archiveSession($: EngineInterface, card: SessionCard) {
+  const isArchived = await archiveDirectly($, card).catch((error: unknown) => {
+    log($, `could not archive "${card.title}": ${String(error)}`);
+    return false;
+  });
+  if (!isArchived) startAction($, card, ARCHIVE_ACTION);
 }
 
 export function togglePreview($: EngineInterface, id: string) {
