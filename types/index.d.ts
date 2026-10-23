@@ -93,6 +93,7 @@ declare module "claude-code" {
       previewed: string;
       pending: Record<string, number>;
       needsSetup: boolean;
+      collapsedGroups: Record<string, boolean>;
       composing: string;
       draft: string;
     };

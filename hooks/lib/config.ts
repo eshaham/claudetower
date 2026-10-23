@@ -46,6 +46,7 @@ export const STORE_KEYS = {
   ends: "transcript-ends-v1",
   projects: "projects-v1",
   isOpen: "isOpen",
+  collapsedGroups: "collapsed-groups",
 } as const;
 
 export const TICKET_TTL_MS = 30 * MINUTE_MS;

@@ -80,6 +80,10 @@ export const needsSetup = atom(
   { plugin: "claudetower", key: "needsSetup" } as const,
   false,
 );
+export const collapsedGroups = atom(
+  { plugin: "claudetower", key: "collapsedGroups" } as const,
+  {},
+);
 export const pending = atom(
   { plugin: "claudetower", key: "pending" } as const,
   {},
@@ -410,6 +414,7 @@ export async function followOtherSessions($: EngineInterface) {
       await openPane($);
     if (!wantsOpen && isUp) await $.ui.close({ id: PANE });
   }
+  await followCollapsedGroups($);
   const isShown = (await $.ui.panes()).some((pane) => pane.id === PANE);
   await update($, isOpen, () => isShown);
 }
@@ -542,4 +547,22 @@ export async function useDefaultRanking($: EngineInterface) {
   await refreshSetupState($);
   await openPane($);
   await load($);
+}
+
+export function readCollapsedGroups($: EngineInterface) {
+  return read($, collapsedGroups);
+}
+
+export async function toggleGroup($: EngineInterface, id: string) {
+  const next = await update($, collapsedGroups, (current) => ({
+    ...current,
+    [id]: !current[id],
+  }));
+  await $.store.set(instanceKey(STORE_KEYS.collapsedGroups), next);
+}
+
+async function followCollapsedGroups($: EngineInterface) {
+  const saved = (await $.store.get(instanceKey(STORE_KEYS.collapsedGroups))) as
+    Record<string, boolean> | undefined;
+  if (saved) await update($, collapsedGroups, () => saved);
 }

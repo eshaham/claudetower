@@ -1,4 +1,4 @@
-import type { EngineInterface, RenderInput } from "claude-code";
+import type { EngineInterface, RenderChildren, RenderInput } from "claude-code";
 
 import type { PrState, SessionCard } from "../../types";
 import {
@@ -11,6 +11,8 @@ import {
   setDraft,
   readPending,
   readNeedsSetup,
+  readCollapsedGroups,
+  toggleGroup,
   sendText,
   startAction,
   togglePreview,
@@ -109,6 +111,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     draftText,
     ranking,
     isSettingUp,
+    collapsedGroups,
   ] = await Promise.all([
     readCards($),
     readPreviewed($),
@@ -117,6 +120,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     readDraft($),
     loadRanking($),
     readNeedsSetup($),
+    readCollapsedGroups($),
   ]);
   const Input = "Input" in resolved ? resolved.Input : null;
   const isProcessing = (card: SessionCard) =>
@@ -148,10 +152,18 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     </Box>
   );
 
-  const heading = (title: string) => (
-    <Text dimColor weight="semibold">
-      {title}
-    </Text>
+  const group = (id: string, title: string, items: RenderChildren[]) => (
+    <Box key={`group-${id}`} flexDirection="column" rowGap={1}>
+      <Button
+        key={`group-toggle-${id}`}
+        plain
+        dimColor
+        hover={{ dimColor: false }}
+        label={`${collapsedGroups[id] ? "▸" : "▾"} ${title}`}
+        onPress={() => toggleGroup($, id)}
+      />
+      {!collapsedGroups[id] && items}
+    </Box>
   );
 
   const prIconOf = (state: PrState) =>
@@ -466,39 +478,32 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
 
   return (
     <Box flexDirection="column" rowGap={1}>
-      {self && (
-        <Box flexDirection="column">
-          {heading("This session")}
-          {cardView(self)}
-        </Box>
-      )}
+      {self && group("self", "This session", [cardView(self)])}
       {summary}
-      {finishing.length > 0 && (
-        <Box flexDirection="column" rowGap={1}>
-          {heading(`Finish (${finishing.length})`)}
-          {finishing.slice(0, ranking.finish.show).map(cardView)}
-          {finishing.length > ranking.finish.show && (
-            <Text dimColor>
+      {finishing.length > 0 &&
+        group("finish", `Finish (${finishing.length})`, [
+          ...finishing.slice(0, ranking.finish.show).map(cardView),
+          finishing.length > ranking.finish.show && (
+            <Text key="finish-more" dimColor>
               +{finishing.length - ranking.finish.show} more to finish
             </Text>
-          )}
-        </Box>
-      )}
-      {ranked.length > 0 && (
-        <Box flexDirection="column" rowGap={1}>
-          {heading(`Open sessions (${ranked.length})`)}
-          {ranked.slice(0, CARD_LIMIT).map(cardView)}
-          {ranked.length > CARD_LIMIT && (
-            <Text dimColor>+{ranked.length - CARD_LIMIT} more</Text>
-          )}
-        </Box>
-      )}
-      {running.length > 0 && (
-        <Box flexDirection="column">
-          {heading(`Running (${running.length})`)}
-          {running.slice(0, LINE_LIMIT).map(runningLine)}
-        </Box>
-      )}
+          ),
+        ])}
+      {ranked.length > 0 &&
+        group("open", `Open sessions (${ranked.length})`, [
+          ...ranked.slice(0, CARD_LIMIT).map(cardView),
+          ranked.length > CARD_LIMIT && (
+            <Text key="open-more" dimColor>
+              +{ranked.length - CARD_LIMIT} more
+            </Text>
+          ),
+        ])}
+      {running.length > 0 &&
+        group(
+          "running",
+          `Running (${running.length})`,
+          running.slice(0, LINE_LIMIT).map(runningLine),
+        )}
     </Box>
   );
 }
