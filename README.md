@@ -53,7 +53,7 @@ claude plugin marketplace add eshaham/claudetower
 claude plugin install claudetower@claudetower
 ```
 
-In Claude Code Desktop, the same is under **+** → **Plugins** → **Add marketplace**, then add the claudetower plugin. New sessions show the panel when they start.
+In Claude Code Desktop, the same is under **+** → **Plugins** → **Add marketplace**, then add the claudetower plugin. Once a session is running (not on Desktop's new-session page, which runs no plugins), the band above the chat input asks how to rank your sessions; after that, the panel opens in every session.
 
 The panel is titled **claudetower**. Type `/tower` in any session to reopen it after closing it.
 

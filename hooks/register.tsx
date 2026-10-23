@@ -7,6 +7,7 @@ import {
   isPaneOpen,
   load,
   loadOnChange,
+  markPanelAsked,
   openPane,
   openSession,
   poll,
@@ -80,6 +81,7 @@ export const register: Register = (on, options) => {
   });
 
   on("command.run", { command: "tower" }, async ($) => {
+    markPanelAsked();
     await openPane($);
     void load($).catch((error: unknown) =>
       log($, `could not refresh: ${String(error)}`),
