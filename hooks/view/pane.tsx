@@ -484,9 +484,14 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
           )}
         </Box>
       )}
-      {ranked.slice(0, CARD_LIMIT).map(cardView)}
-      {ranked.length > CARD_LIMIT && (
-        <Text dimColor>+{ranked.length - CARD_LIMIT} more</Text>
+      {ranked.length > 0 && (
+        <Box flexDirection="column" rowGap={1}>
+          {heading(`Open sessions (${ranked.length})`)}
+          {ranked.slice(0, CARD_LIMIT).map(cardView)}
+          {ranked.length > CARD_LIMIT && (
+            <Text dimColor>+{ranked.length - CARD_LIMIT} more</Text>
+          )}
+        </Box>
       )}
       {running.length > 0 && (
         <Box flexDirection="column">
