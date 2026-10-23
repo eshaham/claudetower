@@ -14,6 +14,7 @@ import {
   readNeedsSetup,
   setPaneOpen,
   toggleCompose,
+  toggleGroup,
   togglePreview,
 } from "./lib/board";
 import {
@@ -97,7 +98,9 @@ export const register: Register = (on, options) => {
         ? openSession($, message.id)
         : message.kind === "toggle"
           ? togglePreview($, message.id)
-          : toggleCompose($, message.id);
+          : message.kind === "group"
+            ? toggleGroup($, message.id)
+            : toggleCompose($, message.id);
     await handled.catch((error: unknown) =>
       log($, `could not handle a ${message.kind} click: ${String(error)}`),
     );

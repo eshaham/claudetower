@@ -12,7 +12,6 @@ import {
   readPending,
   readNeedsSetup,
   readCollapsedGroups,
-  toggleGroup,
   sendText,
   startAction,
   togglePreview,
@@ -154,14 +153,35 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
 
   const group = (id: string, title: string, items: RenderChildren[]) => (
     <Box key={`group-${id}`} flexDirection="column" rowGap={1}>
-      <Button
-        key={`group-toggle-${id}`}
-        plain
-        dimColor
-        hover={{ dimColor: false }}
-        label={`${collapsedGroups[id] ? "▸" : "▾"} ${title}`}
-        onPress={() => toggleGroup($, id)}
-      />
+      <Box
+        position="relative"
+        flexDirection="row"
+        columnGap={1}
+        alignItems="center"
+      >
+        {Svg && (
+          <Svg
+            source={chevron(!collapsedGroups[id])}
+            alt={collapsedGroups[id] ? "Expand" : "Collapse"}
+            width={CHEVRON_SIZE}
+            height={CHEVRON_SIZE}
+          />
+        )}
+        <Text dimColor weight="semibold">
+          {title}
+        </Text>
+        {Client && (
+          <Box position="absolute" top={0} left={0} right={0} bottom={0}>
+            <Client
+              key={`group-hit-${id}`}
+              module="../group-hit.tsx"
+              props={{ id }}
+              width="100%"
+              height="100%"
+            />
+          </Box>
+        )}
+      </Box>
       {!collapsedGroups[id] && items}
     </Box>
   );
