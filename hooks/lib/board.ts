@@ -282,7 +282,8 @@ export async function openPane($: EngineInterface) {
 export async function followOtherSessions($: EngineInterface) {
   const wantsOpen = (await $.store.get(STORE_KEYS.isOpen)) !== false;
   const isUp = (await $.ui.panes()).some((pane) => pane.id === PANE);
-  if (wantsOpen && !isUp) await openPane($);
+  if (wantsOpen && !isUp && (await $.session.surfaces()).length > 0)
+    await openPane($);
   if (!wantsOpen && isUp) {
     await update($, isOpen, () => false);
     await $.ui.close({ id: PANE });

@@ -28,14 +28,20 @@ export const register: Register = (on, options) => {
   setTicketPrefixes(String(options.ticketPrefixes ?? ""));
 
   on("session.start", async ($, e, next) => {
-    await followOtherSessions($);
+    await followOtherSessions($).catch((error: unknown) =>
+      log($, `could not open the panel: ${String(error)}`),
+    );
     await $.command.register({
       name: "tower",
       description: "Open the claudetower session board",
     });
     void discoverHost($)
       .then(() => {
-        $.clock.every(POLL_MS, () => poll($));
+        $.clock.every(POLL_MS, () =>
+          poll($).catch((error: unknown) =>
+            log($, `could not refresh: ${String(error)}`),
+          ),
+        );
         $.clock.every(INBOX_POLL_MS, () =>
           checkInbox($).catch((error: unknown) =>
             log($, `could not check for answers: ${String(error)}`),
@@ -48,18 +54,35 @@ export const register: Register = (on, options) => {
     return next(e);
   });
 
+  on("session.attach", async ($, e, next) => {
+    const attached = await next(e);
+    await followOtherSessions($).catch((error: unknown) =>
+      log($, `could not open the panel: ${String(error)}`),
+    );
+
+    return attached;
+  });
+
   on("command.run", { command: "tower" }, async ($) => {
     await openPane($);
-    void load($);
+    void load($).catch((error: unknown) =>
+      log($, `could not refresh: ${String(error)}`),
+    );
 
     return { text: "Session board opened." };
   });
 
   on("ui.message", async ($, e) => {
     const message = e.data as CardHitMessage;
-    if (message.kind === "open") await openSession($, message.id);
-    if (message.kind === "toggle") await togglePreview($, message.id);
-    if (message.kind === "compose") await toggleCompose($, message.id);
+    const handled =
+      message.kind === "open"
+        ? openSession($, message.id)
+        : message.kind === "toggle"
+          ? togglePreview($, message.id)
+          : toggleCompose($, message.id);
+    await handled.catch((error: unknown) =>
+      log($, `could not handle a ${message.kind} click: ${String(error)}`),
+    );
 
     return {};
   });
