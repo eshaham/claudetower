@@ -15,6 +15,7 @@ import {
   readingFingerprintOf,
   writeRanking,
 } from "./ranking";
+import { setPaneOpen } from "./board";
 import { recencyOf } from "./classify";
 import { judgeScenario } from "./verdict";
 
@@ -147,7 +148,9 @@ async function save($: EngineInterface, input: RankingRequest) {
   const problems = checkRanking(input.ranking);
   if (problems.length > 0) return { problems };
   const before = readingFingerprintOf(await loadRanking($));
+  const isFirst = !(await hasRankingFile($));
   await writeRanking($, input.ranking as Partial<Ranking>);
+  if (isFirst) await setPaneOpen($, true);
   return {
     saved: rankingPath(),
     reReadsSessions:

@@ -379,10 +379,8 @@ export async function openPane($: EngineInterface) {
 }
 
 async function refreshSetupState($: EngineInterface) {
-  const wasNeeded = await read($, needsSetup);
   const isNeeded = (await findInstance($)) !== "" && !(await hasRankingFile($));
   await update($, needsSetup, () => isNeeded);
-  if (wasNeeded && !isNeeded) await setPaneOpen($, true);
   return isNeeded;
 }
 
@@ -405,16 +403,15 @@ export async function followOtherSessions($: EngineInterface) {
   const isUp = (await $.ui.panes()).some((pane) => pane.id === PANE);
   if (isSettingUp) {
     await showSetupBand($, isUp);
-    return;
+  } else {
+    const wantsOpen =
+      (await $.store.get(instanceKey(STORE_KEYS.isOpen))) !== false;
+    if (wantsOpen && !isUp && (await $.session.surfaces()).length > 0)
+      await openPane($);
+    if (!wantsOpen && isUp) await $.ui.close({ id: PANE });
   }
-  const wantsOpen =
-    (await $.store.get(instanceKey(STORE_KEYS.isOpen))) !== false;
-  if (wantsOpen && !isUp && (await $.session.surfaces()).length > 0)
-    await openPane($);
-  if (!wantsOpen && isUp) {
-    await update($, isOpen, () => false);
-    await $.ui.close({ id: PANE });
-  }
+  const isShown = (await $.ui.panes()).some((pane) => pane.id === PANE);
+  await update($, isOpen, () => isShown);
 }
 
 export async function poll($: EngineInterface) {
