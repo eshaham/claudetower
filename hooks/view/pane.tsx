@@ -393,7 +393,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     </Box>
   );
 
-  const setupCard = isSettingUp && (
+  const setupCard = (
     <Box
       flexDirection="column"
       borderStyle="round"
@@ -413,6 +413,16 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
       </Box>
     </Box>
   );
+
+  if (isSettingUp)
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        {setupCard}
+        <Text dimColor wrap="wrap">
+          Your sessions show here once you choose how to rank them.
+        </Text>
+      </Box>
+    );
 
   if (list.length === 0) return <Text dimColor>Loading your sessions…</Text>;
 
@@ -456,7 +466,6 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
 
   return (
     <Box flexDirection="column" rowGap={1}>
-      {setupCard}
       {self && (
         <Box flexDirection="column">
           {heading("This session")}
