@@ -37,7 +37,7 @@ claudetower doesn't assume any tool. Once per project, and again every 7 days wh
 - `gh`, signed in, for PR details. Without it the PR rows are skipped.
 - For ticket priority, an MCP connector to the project's issue tracker. Without one, tickets show without priority.
 
-claudetower reads Claude Code Desktop's own session records and transcripts, opens sessions through its `claude://` links. None of these are a public API, so a Desktop update can change them and break parts of the panel until claudetower catches up.
+claudetower reads Claude Code Desktop's own session records and transcripts and opens sessions through its `claude://` links. None of these are a public API, so a Desktop update can change them and break parts of the panel until claudetower catches up.
 
 ## Install
 
