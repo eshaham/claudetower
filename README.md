@@ -1,4 +1,4 @@
-# claudtower
+# claudetower
 
 A panel for Claude Code Desktop that shows every Claude Code session on your machine, ranked by what it needs from you.
 
@@ -27,7 +27,7 @@ Ranking combines recency (halving every 48 hours), the ticket's priority, the ta
 
 ## How it learns each project
 
-claudtower doesn't assume any tool. Once per project, and again every 7 days while the project has active sessions, Sonnet profiles it from the repo: its git remote, recent branches, session titles, CI workflows, README and CLAUDE.md, plus the MCP tools your Claude Code can call. The profile names the project's ticket prefixes, the tool that looks up one of its tickets, the services it depends on, and what a P0 looks like there. Session reads use it to judge priority.
+claudetower doesn't assume any tool. Once per project, and again every 7 days while the project has active sessions, Sonnet profiles it from the repo: its git remote, recent branches, session titles, CI workflows, README and CLAUDE.md, plus the MCP tools your Claude Code can call. The profile names the project's ticket prefixes, the tool that looks up one of its tickets, the services it depends on, and what a P0 looks like there. Session reads use it to judge priority.
 
 ## Requirements
 
@@ -35,32 +35,32 @@ claudtower doesn't assume any tool. Once per project, and again every 7 days whi
 - `gh`, signed in, for PR details. Without it the PR rows are skipped.
 - For ticket priority, an MCP connector to the project's issue tracker. Without one, tickets show without priority.
 
-claudtower reads Claude Code Desktop's own session records and transcripts, opens sessions through its `claude://` links, and archives through its session tools. None of these are a public API, so a Desktop update can change them and break parts of the panel until claudtower catches up.
+claudetower reads Claude Code Desktop's own session records and transcripts, opens sessions through its `claude://` links, and archives through its session tools. None of these are a public API, so a Desktop update can change them and break parts of the panel until claudetower catches up.
 
 ## Install
 
 In a terminal:
 
 ```bash
-claude plugin marketplace add eshaham/claudtower
+claude plugin marketplace add eshaham/claudetower
 ```
 
 ```bash
-claude plugin install claudtower@claudtower
+claude plugin install claudetower@claudetower
 ```
 
-In Claude Code Desktop, the same is under **+** → **Plugins** → **Add marketplace**, then add the claudtower plugin. New sessions show the panel when they start.
+In Claude Code Desktop, the same is under **+** → **Plugins** → **Add marketplace**, then add the claudetower plugin. New sessions show the panel when they start.
 
-The panel is titled **claudtower**. Type `/tower` in any session to reopen it after closing it.
+The panel is titled **claudetower**. Type `/tower` in any session to reopen it after closing it.
 
 ### Settings
 
-`ticketPrefixes` is optional. Leave it empty to use the prefixes claudtower learns for each project, or list prefixes to use everywhere instead, in `~/.claude/settings.json`:
+`ticketPrefixes` is optional. Leave it empty to use the prefixes claudetower learns for each project, or list prefixes to use everywhere instead, in `~/.claude/settings.json`:
 
 ```json
 {
   "pluginConfigs": {
-    "claudtower": { "options": { "ticketPrefixes": "ENG,OPS" } }
+    "claudetower": { "options": { "ticketPrefixes": "ENG,OPS" } }
   }
 }
 ```
@@ -72,7 +72,7 @@ Clone the repo and load it from your clone in every session, so your edits apply
 ```json
 {
   "env": {
-    "CLAUDE_CODE_PLUGIN_DIRS": "/absolute/path/to/claudtower",
+    "CLAUDE_CODE_PLUGIN_DIRS": "/absolute/path/to/claudetower",
     "CLAUDE_CODE_PLUGIN_DIR_WATCH": "1"
   }
 }

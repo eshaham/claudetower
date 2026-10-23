@@ -31,7 +31,7 @@ export const register: Register = (on, options) => {
     await followOtherSessions($);
     await $.command.register({
       name: "tower",
-      description: "Open the claudtower session board",
+      description: "Open the claudetower session board",
     });
     void discoverHost($)
       .then(() => {

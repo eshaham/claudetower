@@ -1,5 +1,5 @@
 {
-  "name": "claudtower",
+  "name": "claudetower",
   "version": "0.1.0",
   "description": "A panel in Claude Code Desktop that ranks your sessions by what they need from you",
   "author": {
@@ -10,7 +10,7 @@
     "ticketPrefixes": {
       "type": "string",
       "title": "Ticket prefixes",
-      "description": "Optional. Comma-separated issue-key prefixes, e.g. ENG,OPS. Overrides the prefixes claudtower learns for each project.",
+      "description": "Optional. Comma-separated issue-key prefixes, e.g. ENG,OPS. Overrides the prefixes claudetower learns for each project.",
       "default": ""
     }
   },

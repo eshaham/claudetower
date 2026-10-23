@@ -46,22 +46,22 @@ import {
   writeVerdicts,
 } from "./verdict";
 
-export const cards = atom({ plugin: "claudtower", key: "cards" } as const, []);
+export const cards = atom({ plugin: "claudetower", key: "cards" } as const, []);
 export const isOpen = atom(
-  { plugin: "claudtower", key: "isOpen" } as const,
+  { plugin: "claudetower", key: "isOpen" } as const,
   true,
 );
 export const previewed = atom(
-  { plugin: "claudtower", key: "previewed" } as const,
+  { plugin: "claudetower", key: "previewed" } as const,
   "",
 );
-export const draft = atom({ plugin: "claudtower", key: "draft" } as const, "");
+export const draft = atom({ plugin: "claudetower", key: "draft" } as const, "");
 export const composing = atom(
-  { plugin: "claudtower", key: "composing" } as const,
+  { plugin: "claudetower", key: "composing" } as const,
   "",
 );
 export const pending = atom(
-  { plugin: "claudtower", key: "pending" } as const,
+  { plugin: "claudetower", key: "pending" } as const,
   {},
 );
 
@@ -276,7 +276,7 @@ export async function setPaneOpen($: EngineInterface, value: boolean) {
 
 export async function openPane($: EngineInterface) {
   await setPaneOpen($, true);
-  await $.ui.open({ id: PANE, title: "claudtower", columns: PANE_COLUMNS });
+  await $.ui.open({ id: PANE, title: "claudetower", columns: PANE_COLUMNS });
 }
 
 export async function followOtherSessions($: EngineInterface) {

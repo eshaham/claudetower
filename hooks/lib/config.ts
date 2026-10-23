@@ -1,7 +1,7 @@
 import type { EngineInterface } from "claude-code";
 
-export const PLUGIN = "claudtower";
-export const PANE = "claudtower";
+export const PLUGIN = "claudetower";
+export const PANE = "claudetower";
 
 const SECOND_MS = 1000;
 export const MINUTE_MS = 60 * SECOND_MS;
@@ -119,4 +119,4 @@ export async function loadTools($: EngineInterface) {
 
 export const sessionsRoot = () => `${host.home}/${SESSIONS_ROOT}`;
 
-export const inboxDir = () => `${host.home}/.claude/claudtower/inbox`;
+export const inboxDir = () => `${host.home}/.claude/claudetower/inbox`;

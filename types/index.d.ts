@@ -74,7 +74,7 @@ export type CardHitMessage = {
 
 declare module "claude-code" {
   interface PluginState {
-    claudtower: {
+    claudetower: {
       cards: SessionCard[];
       isOpen: boolean;
       previewed: string;

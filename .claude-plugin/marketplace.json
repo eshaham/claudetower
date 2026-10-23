@@ -1,5 +1,5 @@
 {
-  "name": "claudtower",
+  "name": "claudetower",
   "owner": { "name": "Elad Shaham" },
-  "plugins": [{ "name": "claudtower", "source": "./" }]
+  "plugins": [{ "name": "claudetower", "source": "./" }]
 }
