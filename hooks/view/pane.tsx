@@ -12,6 +12,8 @@ import {
   readPending,
   sendText,
   startAction,
+  startSetup,
+  useDefaultRanking,
   togglePreview,
 } from "../lib/board";
 import {
@@ -35,7 +37,7 @@ import {
   host,
 } from "../lib/config";
 import { isOpenPr } from "../lib/enrich";
-import { loadRanking } from "../lib/ranking";
+import { hasRankingFile, loadRanking } from "../lib/ranking";
 import {
   BUBBLE_BORDER,
   CHEVRON_SIZE,
@@ -99,15 +101,23 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
   const { Box, Text, Button, Markdown } = resolved;
   const Svg = "Svg" in resolved ? resolved.Svg : null;
   const Client = "Client" in resolved ? resolved.Client : null;
-  const [list, previewedId, pendingAt, composingId, draftText, ranking] =
-    await Promise.all([
-      readCards($),
-      readPreviewed($),
-      readPending($),
-      readComposing($),
-      readDraft($),
-      loadRanking($),
-    ]);
+  const [
+    list,
+    previewedId,
+    pendingAt,
+    composingId,
+    draftText,
+    ranking,
+    hasRanking,
+  ] = await Promise.all([
+    readCards($),
+    readPreviewed($),
+    readPending($),
+    readComposing($),
+    readDraft($),
+    loadRanking($),
+    hasRankingFile($),
+  ]);
   const Input = "Input" in resolved ? resolved.Input : null;
   const isProcessing = (card: SessionCard) =>
     card.isRunning || (pendingAt[card.id] ?? 0) > card.lastAt;
@@ -383,6 +393,30 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     </Box>
   );
 
+  const setupCard = !hasRanking && host.instance !== "" && (
+    <Box flexDirection="column" borderStyle="round" paddingX={1} rowGap={1}>
+      <Text weight="semibold">Rank sessions your way</Text>
+      <Text wrap="wrap">
+        claudetower ranks your sessions with a default that works for anyone.
+        Tell it what matters to you in a short setup, run in a new session.
+      </Text>
+      <Box flexDirection="row" columnGap={1}>
+        <Button
+          key="setup-start"
+          variant="primary"
+          label="Set up"
+          onPress={() => startSetup($)}
+        />
+        <Button
+          key="setup-default"
+          variant="secondary"
+          label="Use the default"
+          onPress={() => useDefaultRanking($)}
+        />
+      </Box>
+    </Box>
+  );
+
   if (list.length === 0) return <Text dimColor>Loading your sessions…</Text>;
 
   if (width >= BOARD_MIN_COLUMNS) {
@@ -425,6 +459,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
 
   return (
     <Box flexDirection="column" rowGap={1}>
+      {setupCard}
       {self && (
         <Box flexDirection="column">
           {heading("This session")}

@@ -12,20 +12,22 @@ Each stopped session gets one card with:
 
 - The project, the ticket and its tracker priority (when the session names one), uncommitted files, and how long ago it last spoke.
 - Its pull requests: an icon and diff size for each open PR, with failing or running checks, and a count of merged ones.
-- What it's waiting for, labeled **Answer**, **Act**, **Review**, **Follow up**, **In flight** or **Wrap up**, with a **Critical** or **High** label when the task is serious.
+- What it's waiting for, labeled **Answer**, **Act**, **Review**, **Follow up**, **In flight** or **Wrap up**, with an **Urgent** or **High** label when the task is serious, and labels such as `production` or `ci` when they apply.
 - The options the session offered you at the end (its question and buttons), so you can see the choice without opening it.
 - An **Archive** button once the session is finished: no open PR, no uncommitted files, and nothing left for you. When your settings allow `mcp__ccd_session_mgmt__archive_session`, it archives the session at once; otherwise it asks that session to archive itself, so the request goes through the session's own permission checks.
 - A chevron that expands your last message and Claude's reply.
 
-The session you're in sits in a **This session** section at the top. Widen the panel past 100 columns and it switches to a board with one lane per label.
+The session you're in sits in a **This session** section at the top. Sessions in their last mile (ready to archive, a PR ready to merge, a last yes/no) gather in a **Finish** section, oldest first, so nearly-done work gets closed. Widen the panel past 100 columns and it switches to a board with one lane per label.
 
 Clicking a card opens that session.
 
 ## How it decides
 
-When a session finishes a turn, Sonnet reads it once on your Claude subscription. It sees a digest of the whole conversation, the last exchange, the session's open PRs, and any sessions started from it. It answers what the session waits for, what you should do next, how urgent it is, and whether the session is finished. A session is read again only when it has a new message, a PR changes state, or a session is started from it.
+When a session finishes a turn, Sonnet reads it once on your Claude subscription. It sees a digest of the whole conversation, the last exchange, the session's open PRs, its ticket, and any sessions started from it. It answers what the session waits for, what you should do next, an urgency score from 0 to 100, which labels apply, and whether the session is in its last mile or finished. A session is read again only when something it was read with changes: a new message, a PR's state, its ticket's priority, or your ranking rules.
 
-Ranking combines recency (halving every 48 hours), the ticket's priority, the task's priority, and whether the session waits on you. A **critical** task is a P0 happening now: a production service down for users, data loss, a security incident, or the team blocked, such as the main branch's CI broken.
+The order is plain arithmetic on that reading, recalculated on every refresh with no model call: urgency, lowered gently by age, times a small factor for what the session waits for. Age only orders sessions of similar urgency, so urgent work stays on top however old it is.
+
+What counts as urgent is yours to set, in your own words. The first time the panel opens, a card offers a short setup in a new session; after that, tell any session what should rank higher or lower and the `claudetower:ranking` skill updates your ranking file, previewing the change on made-up examples before saving. [docs/ranking.md](docs/ranking.md) explains the whole model.
 
 ## How it learns each project
 

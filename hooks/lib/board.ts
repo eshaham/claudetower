@@ -38,7 +38,7 @@ import {
   ticketPatternOf,
 } from "./project";
 import type { Ranking } from "./ranking";
-import { loadRanking, readingFingerprintOf } from "./ranking";
+import { loadRanking, readingFingerprintOf, writeRanking } from "./ranking";
 import type { Live } from "./transcript";
 import {
   loadLive,
@@ -494,4 +494,16 @@ export function startAction(
 export function sendText($: EngineInterface, card: SessionCard, text: string) {
   const message = text.trim();
   if (message !== "") startAction($, card, { label: message, message });
+}
+
+const SETUP_MESSAGE =
+  "Start a new session that sets up claudetower with its claudetower:ranking skill.";
+
+export async function startSetup($: EngineInterface) {
+  await $.prompt.submit({ text: SETUP_MESSAGE, asUser: true });
+}
+
+export async function useDefaultRanking($: EngineInterface) {
+  await writeRanking($, {});
+  await load($);
 }
