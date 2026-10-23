@@ -159,6 +159,9 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
         columnGap={1}
         alignItems="center"
       >
+        <Text dimColor weight="semibold">
+          {title}
+        </Text>
         {Svg && (
           <Svg
             source={chevron(!collapsedGroups[id])}
@@ -167,9 +170,6 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
             height={CHEVRON_SIZE}
           />
         )}
-        <Text dimColor weight="semibold">
-          {title}
-        </Text>
         {Client && (
           <Box position="absolute" top={0} left={0} right={0} bottom={0}>
             <Client
