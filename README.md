@@ -14,7 +14,7 @@ Each stopped session gets one card with:
 - Its pull requests: an icon and diff size for each open PR, with failing or running checks, and a count of merged ones.
 - What it's waiting for, labeled **Answer**, **Act**, **Review**, **Follow up**, **In flight** or **Wrap up**, with a **Critical** or **High** label when the task is serious.
 - The options the session offered you at the end (its question and buttons), so you can see the choice without opening it.
-- An **Archive** button once the session is finished: no open PR, no uncommitted files, and nothing left for you.
+- An **Archive** button once the session is finished: no open PR, no uncommitted files, and nothing left for you. It asks that session to archive itself, so the request goes through the session's own permission checks.
 - A chevron that expands your last message and Claude's reply.
 
 The session you're in sits in a **This session** section at the top. Widen the panel past 100 columns and it switches to a board with one lane per label.
@@ -37,7 +37,7 @@ claudetower doesn't assume any tool. Once per project, and again every 7 days wh
 - `gh`, signed in, for PR details. Without it the PR rows are skipped.
 - For ticket priority, an MCP connector to the project's issue tracker. Without one, tickets show without priority.
 
-claudetower reads Claude Code Desktop's own session records and transcripts, opens sessions through its `claude://` links, and archives through its session tools. None of these are a public API, so a Desktop update can change them and break parts of the panel until claudetower catches up.
+claudetower reads Claude Code Desktop's own session records and transcripts, opens sessions through its `claude://` links. None of these are a public API, so a Desktop update can change them and break parts of the panel until claudetower catches up.
 
 ## Install
 

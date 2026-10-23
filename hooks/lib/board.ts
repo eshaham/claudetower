@@ -4,7 +4,6 @@ import type { EngineInterface } from "claude-code";
 import type { SessionAction, SessionCard } from "../../types";
 import { classify } from "./classify";
 import {
-  ARCHIVE_SESSION,
   ANSWER_CHECK_MS,
   ANSWER_PICKUP_MS,
   inboxDir,
@@ -306,19 +305,13 @@ export async function openSession($: EngineInterface, id: string) {
     $.ui.toast(`Could not open the session: ${opened.stderr.trim()}`);
 }
 
-export async function archiveSession($: EngineInterface, card: SessionCard) {
-  const archived = await $.tool.call({
-    tool: ARCHIVE_SESSION,
-    session_id: card.id,
-    reason: card.verdict?.waitingFor || "Finished with nothing left to do",
-  });
-  if (archived.deny !== undefined || archived.isError) {
-    $.ui.toast(
-      `Could not archive "${card.title}": ${archived.deny ?? archived.text ?? "no answer"}`,
-    );
-    return;
-  }
-  await update($, cards, (list) => list.filter((one) => one.id !== card.id));
+const ARCHIVE_ACTION: SessionAction = {
+  label: "Archive",
+  message: "Archive this session.",
+};
+
+export function archiveSession($: EngineInterface, card: SessionCard) {
+  startAction($, card, ARCHIVE_ACTION);
 }
 
 export function togglePreview($: EngineInterface, id: string) {
