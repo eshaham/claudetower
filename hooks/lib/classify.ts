@@ -97,7 +97,7 @@ const laneOf = (facts: CardFacts, canArchive: boolean): LaneId => {
   return "wrap-up";
 };
 
-const recencyOf = (ranking: Ranking, ageMs: number) =>
+export const recencyOf = (ranking: Ranking, ageMs: number) =>
   ranking.recency.floor +
   (1 - ranking.recency.floor) *
     0.5 ** (ageMs / HOUR_MS / ranking.recency.halfLifeHours);

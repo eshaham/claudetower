@@ -71,7 +71,21 @@ export type CardHitMessage = {
   id: string;
 };
 
+export type RankingToolInput = {
+  action: "show" | "preview" | "save";
+  ranking?: Record<string, unknown>;
+  scenarios?: {
+    name: string;
+    description: string;
+    ageHours?: number;
+    lane?: LaneId;
+  }[];
+};
+
 declare module "claude-code" {
+  interface McpToolInputs {
+    mcp__claudetower__ranking: RankingToolInput;
+  }
   interface PluginState {
     claudetower: {
       cards: SessionCard[];

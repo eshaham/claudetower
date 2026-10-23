@@ -18,11 +18,17 @@ import {
   CHANGE_CHECK_MS,
   INBOX_POLL_MS,
   PANE,
+  PLUGIN,
   POLL_MS,
   discoverHost,
   log,
   setTicketPrefixes,
 } from "./lib/config";
+import {
+  RANKING_TOOL,
+  RANKING_TOOL_SPEC,
+  runRankingTool,
+} from "./lib/ranking-tool";
 import { renderAbovePrompt } from "./view/above-prompt";
 import { renderPane } from "./view/pane";
 
@@ -37,6 +43,7 @@ export const register: Register = (on, options) => {
       name: "tower",
       description: "Open the claudetower session board",
     });
+    await $.tool.register(RANKING_TOOL_SPEC);
     void discoverHost($)
       .then(() => {
         $.clock.every(POLL_MS, () =>
@@ -93,6 +100,14 @@ export const register: Register = (on, options) => {
 
     return {};
   });
+
+  on(
+    "tool.call",
+    { tool: `mcp__${PLUGIN}__${RANKING_TOOL}` },
+    async ($, e) => ({
+      result: JSON.stringify(await runRankingTool($, e), null, 2),
+    }),
+  );
 
   on("ui.close", async ($, e, next) => {
     const closed = await next(e);
