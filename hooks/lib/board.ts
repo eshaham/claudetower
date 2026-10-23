@@ -243,11 +243,40 @@ export async function load($: EngineInterface) {
   }
 }
 
-export async function openSession($: EngineInterface, id: string) {
-  const opened = await $.process.run([
-    "open",
-    `claude://claude.ai/epitaxy/${id}`,
+const SEND_URL_TO_PID = `ObjC.import("AppKit");
+function run(argv) {
+  const pid = Number(argv[0]);
+  const code = (text) => [...text].reduce((n, c) => (n << 8) | c.charCodeAt(0), 0);
+  const event = $.NSAppleEventDescriptor.appleEventWithEventClassEventIDTargetDescriptorReturnIDTransactionID(
+    code("GURL"), code("GURL"), $.NSAppleEventDescriptor.descriptorWithProcessIdentifier(pid), -1, 0);
+  event.setParamDescriptorForKeyword($.NSAppleEventDescriptor.descriptorWithString(argv[1]), code("----"));
+  const error = Ref();
+  event.sendEventWithOptionsTimeoutError(1, 10, error);
+  if (error[0] && !error[0].isNil()) throw new Error(ObjC.unwrap(error[0].localizedDescription));
+  const app = $.NSRunningApplication.runningApplicationWithProcessIdentifier(pid);
+  if (!app.isNil()) app.activateWithOptions(0);
+}`;
+
+async function openInOwnApp($: EngineInterface, url: string) {
+  if (!host.appPid) return false;
+  const sent = await $.process.run([
+    "/usr/bin/osascript",
+    "-l",
+    "JavaScript",
+    "-e",
+    SEND_URL_TO_PID,
+    host.appPid,
+    url,
   ]);
+  if (sent.exitCode !== 0)
+    log($, `could not open ${url} in this app: ${sent.stderr.trim()}`);
+  return sent.exitCode === 0;
+}
+
+export async function openSession($: EngineInterface, id: string) {
+  const url = `claude://claude.ai/epitaxy/${id}`;
+  if (await openInOwnApp($, url)) return;
+  const opened = await $.process.run(["open", url]);
   if (opened.exitCode !== 0)
     $.ui.toast(`Could not open the session: ${opened.stderr.trim()}`);
 }

@@ -70,6 +70,7 @@ export const host: {
   gh: string;
   selfCliId: string;
   instance: string;
+  appPid: string;
   tools: ToolSummary[];
   ticketPrefixOverride: string[];
 } = {
@@ -77,6 +78,7 @@ export const host: {
   gh: "",
   selfCliId: "",
   instance: "",
+  appPid: "",
   tools: [],
   ticketPrefixOverride: [],
 };
@@ -101,6 +103,14 @@ const GH_CANDIDATES = [
   "/usr/bin/gh",
 ];
 
+const FIND_APP_PID =
+  'p=$PPID; while [ "$p" -gt 1 ]; do q=$(ps -o ppid= -p "$p" | tr -d " "); [ "$q" = 1 ] && case "$(ps -o comm= -p "$p")" in */Contents/MacOS/Claude) echo "$p"; exit 0;; *) exit 1;; esac; p=$q; done; exit 1';
+
+async function findAppPid($: EngineInterface) {
+  const found = await $.process.run(["/bin/sh", "-c", FIND_APP_PID]);
+  return found.exitCode === 0 ? found.stdout.trim() : "";
+}
+
 async function findGh($: EngineInterface) {
   for (const path of GH_CANDIDATES) if (await $.fs.exists(path)) return path;
   const found = await $.process.run(["/bin/sh", "-c", "command -v gh"]);
@@ -108,14 +118,16 @@ async function findGh($: EngineInterface) {
 }
 
 export async function discoverHost($: EngineInterface) {
-  const [home, gh, selfCliId] = await Promise.all([
+  const [home, gh, selfCliId, appPid] = await Promise.all([
     $.process.run(["/usr/bin/printenv", "HOME"]),
     findGh($),
     $.session.id(),
+    findAppPid($),
   ]);
   host.home = home.stdout.trim();
   host.gh = gh;
   host.selfCliId = selfCliId;
+  host.appPid = appPid;
   await findInstance($);
   if (!host.gh) log($, "gh not found; PR details are off");
 }
