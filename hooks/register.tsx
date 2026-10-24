@@ -8,6 +8,7 @@ import {
   load,
   loadOnChange,
   markPanelAsked,
+  noteClickLayerFailure,
   openPane,
   openSession,
   poll,
@@ -115,6 +116,11 @@ export const register: Register = (on, options) => {
       result: JSON.stringify(await runRankingTool($, e), null, 2),
     }),
   );
+
+  on("ui.fault", async ($, e, next) => {
+    await noteClickLayerFailure($, e.reason);
+    return next(e);
+  });
 
   on("ui.close", async ($, e, next) => {
     const closed = await next(e);

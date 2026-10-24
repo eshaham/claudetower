@@ -19,6 +19,7 @@ import {
   log,
   instanceKey,
   findInstance,
+  MINUTE_MS,
 } from "./config";
 import type { PrStore, TicketStore } from "./enrich";
 import {
@@ -83,6 +84,10 @@ export const needsSetup = atom(
 export const collapsedGroups = atom(
   { plugin: "claudetower", key: "collapsedGroups" } as const,
   {},
+);
+export const clickLayersFailedAt = atom(
+  { plugin: "claudetower", key: "clickLayersFailedAt" } as const,
+  0,
 );
 export const pending = atom(
   { plugin: "claudetower", key: "pending" } as const,
@@ -565,4 +570,20 @@ async function followCollapsedGroups($: EngineInterface) {
   const saved = (await $.store.get(instanceKey(STORE_KEYS.collapsedGroups))) as
     Record<string, boolean> | undefined;
   if (saved) await update($, collapsedGroups, () => saved);
+}
+
+const CLICK_LAYER_RETRY_MS = 2 * MINUTE_MS;
+
+export async function areClickLayersHealthy($: EngineInterface) {
+  return (
+    Date.now() - (await read($, clickLayersFailedAt)) > CLICK_LAYER_RETRY_MS
+  );
+}
+
+export async function noteClickLayerFailure(
+  $: EngineInterface,
+  reason: string,
+) {
+  log($, `a click layer failed, using buttons for now: ${reason}`);
+  await update($, clickLayersFailedAt, () => Date.now());
 }

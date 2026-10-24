@@ -2,7 +2,12 @@ import type { ClientModule } from "claude-code";
 
 import type { CardHitMessage } from "../types";
 
-type Props = { id: string; canToggle: boolean; canCompose: boolean };
+type Props = {
+  id: string;
+  canToggle: boolean;
+  canCompose: boolean;
+  isGroup?: boolean;
+};
 
 const TOGGLE_COLUMNS = 3;
 const COMPOSE_COLUMNS = 4;
@@ -22,8 +27,9 @@ const CardHit: ClientModule<Props, Props> = (props, surface) => {
       const current = surface.state ?? props;
       const fromRight = surface.columns - event.x;
       const inCorner = event.y < CORNER_ROWS;
-      const kind: CardHitMessage["kind"] =
-        inCorner && current.canToggle && fromRight <= TOGGLE_COLUMNS
+      const kind: CardHitMessage["kind"] = current.isGroup
+        ? "group"
+        : inCorner && current.canToggle && fromRight <= TOGGLE_COLUMNS
           ? "toggle"
           : inCorner &&
               current.canCompose &&
@@ -37,7 +43,8 @@ const CardHit: ClientModule<Props, Props> = (props, surface) => {
   if (
     previous?.id !== props.id ||
     previous.canToggle !== props.canToggle ||
-    previous.canCompose !== props.canCompose
+    previous.canCompose !== props.canCompose ||
+    previous.isGroup !== props.isGroup
   )
     surface.setState(props);
 

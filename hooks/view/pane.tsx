@@ -12,6 +12,9 @@ import {
   readPending,
   readNeedsSetup,
   readCollapsedGroups,
+  areClickLayersHealthy,
+  toggleCompose,
+  toggleGroup,
   sendText,
   startAction,
   togglePreview,
@@ -101,7 +104,10 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
   const resolved = $.ui.resolve(e);
   const { Box, Text, Button, Markdown } = resolved;
   const Svg = "Svg" in resolved ? resolved.Svg : null;
-  const Client = "Client" in resolved ? resolved.Client : null;
+  const Client =
+    "Client" in resolved && (await areClickLayersHealthy($))
+      ? resolved.Client
+      : null;
   const [
     list,
     previewedId,
@@ -159,10 +165,20 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
         columnGap={1}
         alignItems="center"
       >
-        <Text dimColor weight="semibold">
-          {title}
-        </Text>
-        {Svg && (
+        {Client ? (
+          <Text dimColor weight="semibold">
+            {title}
+          </Text>
+        ) : (
+          <Button
+            key={`group-toggle-${id}`}
+            plain
+            dimColor
+            label={`${title} ${collapsedGroups[id] ? "▸" : "▾"}`}
+            onPress={() => toggleGroup($, id)}
+          />
+        )}
+        {Svg && Client && (
           <Svg
             source={chevron(!collapsedGroups[id])}
             alt={collapsedGroups[id] ? "Expand" : "Collapse"}
@@ -174,8 +190,8 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
           <Box position="absolute" top={0} left={0} right={0} bottom={0}>
             <Client
               key={`group-hit-${id}`}
-              module="../group-hit.tsx"
-              props={{ id }}
+              module="../card-hit.tsx"
+              props={{ id, canToggle: false, canCompose: false, isGroup: true }}
               width="100%"
               height="100%"
             />
@@ -329,9 +345,19 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     >
       <Box key={`body-${card.id}`} position="relative" flexDirection="column">
         <Box paddingRight={7}>
-          <Text weight="semibold" wrap="wrap">
-            {card.title}
-          </Text>
+          {Client ? (
+            <Text weight="semibold" wrap="wrap">
+              {card.title}
+            </Text>
+          ) : (
+            <Button
+              key={`open-title-${card.id}`}
+              plain
+              onPress={() => openSession($, card.id)}
+            >
+              {card.title}
+            </Button>
+          )}
         </Box>
         <Text dimColor size="caption" wrap="wrap">
           {factsLine(card)}
@@ -343,24 +369,44 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
         )}
         {prLines(card)}
         {reason(card)}
-        {Svg && canCompose(card) && (
+        {canCompose(card) && (
           <Box position="absolute" top={0} right={3}>
-            <Svg
-              source={pencil(composingId === card.id)}
-              alt="Write to this session"
-              width={PENCIL_SIZE}
-              height={PENCIL_SIZE}
-            />
+            {Svg && Client ? (
+              <Svg
+                source={pencil(composingId === card.id)}
+                alt="Write to this session"
+                width={PENCIL_SIZE}
+                height={PENCIL_SIZE}
+              />
+            ) : (
+              <Button
+                key={`compose-${card.id}-fallback`}
+                plain
+                dimColor
+                label="✎"
+                onPress={() => toggleCompose($, card.id)}
+              />
+            )}
           </Box>
         )}
-        {Svg && hasPreview(card) && (
+        {hasPreview(card) && (
           <Box position="absolute" top={0} right={0}>
-            <Svg
-              source={chevron(previewedId === card.id)}
-              alt={previewedId === card.id ? "Collapse" : "Expand"}
-              width={CHEVRON_SIZE}
-              height={CHEVRON_SIZE}
-            />
+            {Svg && Client ? (
+              <Svg
+                source={chevron(previewedId === card.id)}
+                alt={previewedId === card.id ? "Collapse" : "Expand"}
+                width={CHEVRON_SIZE}
+                height={CHEVRON_SIZE}
+              />
+            ) : (
+              <Button
+                key={`toggle-${card.id}-fallback`}
+                plain
+                dimColor
+                label={previewedId === card.id ? "▾" : "▸"}
+                onPress={() => togglePreview($, card.id)}
+              />
+            )}
           </Box>
         )}
         {Client && (

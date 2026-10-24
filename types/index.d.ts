@@ -94,6 +94,7 @@ declare module "claude-code" {
       pending: Record<string, number>;
       needsSetup: boolean;
       collapsedGroups: Record<string, boolean>;
+      clickLayersFailedAt: number;
       composing: string;
       draft: string;
     };
