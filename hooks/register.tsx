@@ -5,8 +5,9 @@ import {
   checkInbox,
   followOtherSessions,
   isPaneOpen,
+  followBoard,
+  leaseTick,
   load,
-  loadOnChange,
   markPanelAsked,
   noteClickLayerFailure,
   openPane,
@@ -19,8 +20,8 @@ import {
   togglePreview,
 } from "./lib/board";
 import {
-  CHANGE_CHECK_MS,
-  INBOX_POLL_MS,
+  FOLLOW_TICK_MS,
+  LEASE_TICK_MS,
   PANE,
   PLUGIN,
   POLL_MS,
@@ -56,15 +57,18 @@ export const register: Register = (on, options) => {
             log($, `could not refresh: ${String(error)}`),
           ),
         );
-        $.clock.every(CHANGE_CHECK_MS, () =>
-          loadOnChange($).catch((error: unknown) =>
-            log($, `could not check for changes: ${String(error)}`),
+        $.clock.every(LEASE_TICK_MS, () =>
+          leaseTick($).catch((error: unknown) =>
+            log($, `could not check who leads the board: ${String(error)}`),
           ),
         );
-        $.clock.every(INBOX_POLL_MS, () =>
-          checkInbox($).catch((error: unknown) =>
-            log($, `could not check for answers: ${String(error)}`),
+        $.clock.every(FOLLOW_TICK_MS, () =>
+          Promise.all([followBoard($), checkInbox($)]).catch((error: unknown) =>
+            log($, `could not follow the board: ${String(error)}`),
           ),
+        );
+        void leaseTick($).catch((error: unknown) =>
+          log($, `could not check who leads the board: ${String(error)}`),
         );
         return poll($);
       })

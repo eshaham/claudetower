@@ -16,12 +16,17 @@ export const PROJECT_TTL_MS = 7 * DAY_MS;
 export const CLAIM_MS = 5 * MINUTE_MS;
 export const ANSWER_CHECK_MS = SECOND_MS;
 export const ANSWER_PICKUP_MS = 10 * SECOND_MS;
-export const INBOX_POLL_MS = 2 * SECOND_MS;
 export const POLL_MS = 15 * SECOND_MS;
-export const CHANGE_CHECK_MS = 2 * SECOND_MS;
+export const LEASE_TICK_MS = 5 * SECOND_MS;
+export const LEASE_EXPIRES_MS = 30 * SECOND_MS;
+export const LEASE_SETTLE_MS = 300;
+export const LOAD_DEBOUNCE_MS = SECOND_MS;
+export const FOLLOW_TICK_MS = 2 * SECOND_MS;
 export const PENDING_MS = 2 * MINUTE_MS;
 
 export const TAIL_BYTES = 1500000;
+export const FIRST_TAIL_BYTES = 256000;
+export const GIT_STATUS_TTL_MS = 5 * MINUTE_MS;
 export const LAST_TEXT_CHARS = 6000;
 export const PREVIEW_REPLY_CHARS = 2500;
 export const PROMPT_CHARS = 800;
@@ -38,12 +43,13 @@ export const CARDS_PER_LANE = 8;
 
 export const VERDICT_MODEL = "sonnet";
 
+export const LEGACY_ENDS_KEY = "transcript-ends-v1";
+
 export const STORE_KEYS = {
   verdicts: "verdicts-v10",
   claims: "claims",
   tickets: "tickets-v2",
   prs: "prs",
-  ends: "transcript-ends-v1",
   projects: "projects-v1",
   isOpen: "isOpen",
   collapsedGroups: "collapsed-groups",

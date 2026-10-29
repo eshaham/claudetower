@@ -19,6 +19,10 @@ import {
   log,
   instanceKey,
   findInstance,
+  LEASE_EXPIRES_MS,
+  LEASE_SETTLE_MS,
+  LEGACY_ENDS_KEY,
+  LOAD_DEBOUNCE_MS,
   MINUTE_MS,
 } from "./config";
 import type { PrStore, TicketStore } from "./enrich";
@@ -45,6 +49,8 @@ import {
   readingFingerprintOf,
   writeRanking,
 } from "./ranking";
+import type { LeaseFile } from "./lease";
+import { holdLease, isLease } from "./lease";
 import type { Live } from "./transcript";
 import {
   loadLive,
@@ -106,6 +112,10 @@ type Enriched = Live & { context: VerdictContext; ticket: string };
 
 const reading = new Set<string>();
 let isLoading = false;
+let isDirty = false;
+let isLeader = false;
+let boardSeenAt = 0;
+let inboxSeenAt = -1;
 let watched: string[] = [];
 let lastSeen = "";
 
@@ -189,6 +199,22 @@ const cardOf = (one: Enriched, now: number, stores: Stores): SessionCard => {
   );
 };
 
+async function prunePending(
+  $: EngineInterface,
+  shown: SessionCard[],
+  now: number,
+) {
+  await update($, pending, (current) =>
+    Object.fromEntries(
+      Object.entries(current).filter(
+        ([id, at]) =>
+          now - at < PENDING_MS &&
+          (shown.find((card) => card.id === id)?.lastAt ?? 0) < at,
+      ),
+    ),
+  );
+}
+
 async function build($: EngineInterface, live: Live[], now: number) {
   const stores = await readStores($);
   const enriched = enrich(live, stores);
@@ -196,16 +222,8 @@ async function build($: EngineInterface, live: Live[], now: number) {
     .map((one) => cardOf(one, now, stores))
     .sort((a, b) => b.score - a.score);
   await update($, cards, () => built);
-  await update($, pending, (current) =>
-    Object.fromEntries(
-      Object.entries(current).filter(
-        ([id, at]) =>
-          now - at < PENDING_MS &&
-          (built.find((card) => card.id === id)?.lastAt ?? 0) < at,
-      ),
-    ),
-  );
-  return { stores, enriched };
+  await prunePending($, built, now);
+  return { stores, enriched, built };
 }
 
 async function readNewVerdicts(
@@ -260,47 +278,150 @@ function inBackground(
 }
 
 export async function load($: EngineInterface) {
-  if (isLoading || !(await findInstance($))) return;
+  if (!(await findInstance($))) return;
+  if (!isLeader) {
+    await followBoard($);
+    return;
+  }
+  if (isLoading) {
+    isDirty = true;
+    return;
+  }
   isLoading = true;
   try {
-    const now = Date.now();
-    const live = await loadLive($, now);
-    const { stores, enriched } = await build($, live, now);
-    inBackground($, "projects", () => refreshProjects($, live));
-    inBackground($, "tickets", () =>
-      refreshTickets(
-        $,
-        enriched.flatMap((one) =>
-          one.ticket && one.context.project
-            ? [{ id: one.ticket, profile: one.context.project }]
-            : [],
-        ),
-      ),
-    );
-    inBackground($, "prs", () => refreshPrs($, live));
-    inBackground($, "verdicts", async () => {
-      const fresh = await readNewVerdicts($, enriched, stores.verdicts);
-      if (Object.keys(fresh).length === 0) return;
-      await writeVerdicts($, fresh, new Set(live.map(({ s }) => s.sessionId)));
-      await load($);
-    });
-    watched = [
-      ...(await sessionDirs($)),
-      ...live.map(({ s }) => transcriptPath(s)),
-    ];
+    await loadAsLeader($);
   } finally {
     isLoading = false;
   }
+  if (isDirty) {
+    isDirty = false;
+    await $.clock.sleep(LOAD_DEBOUNCE_MS);
+    await load($);
+  }
+}
+
+async function loadAsLeader($: EngineInterface) {
+  const now = Date.now();
+  const live = await loadLive($, now);
+  const { stores, enriched, built } = await build($, live, now);
+  await writeBoard($, built);
+  inBackground($, "projects", () => refreshProjects($, live));
+  inBackground($, "tickets", () =>
+    refreshTickets(
+      $,
+      enriched.flatMap((one) =>
+        one.ticket && one.context.project
+          ? [{ id: one.ticket, profile: one.context.project }]
+          : [],
+      ),
+    ),
+  );
+  inBackground($, "prs", () => refreshPrs($, live));
+  inBackground($, "verdicts", async () => {
+    const fresh = await readNewVerdicts($, enriched, stores.verdicts);
+    if (Object.keys(fresh).length === 0) return;
+    await writeVerdicts($, fresh, new Set(live.map(({ s }) => s.sessionId)));
+    await load($);
+  });
+  watched = [
+    ...(await sessionDirs($)),
+    ...live.map(({ s }) => transcriptPath(s)),
+  ];
 }
 
 export async function loadOnChange($: EngineInterface) {
-  if (watched.length === 0 || isLoading) return;
+  if (!isLeader || watched.length === 0 || isLoading) return;
   const stats = await $.process.run(["/usr/bin/stat", "-f", "%Fm", ...watched]);
   const seen = stats.stdout;
   if (seen === lastSeen) return;
   const isFirst = lastSeen === "";
   lastSeen = seen;
   if (!isFirst) await load($);
+}
+
+const leasePath = () =>
+  `${host.home}/.claude/claudetower/leases/${host.instance}.json`;
+const boardPath = () =>
+  `${host.home}/.claude/claudetower/boards/${host.instance}.json`;
+
+async function makeParentDir($: EngineInterface, path: string) {
+  const dir = path.slice(0, path.lastIndexOf("/"));
+  if (await $.fs.exists(dir)) return;
+  const made = await $.process.run(["/bin/mkdir", "-p", dir]);
+  if (made.exitCode !== 0)
+    log($, `could not create ${dir}: ${made.stderr.trim()}`);
+}
+
+async function readJson($: EngineInterface, path: string) {
+  if (!(await $.fs.exists(path))) return null;
+  const text = await $.fs.read(path);
+  try {
+    return JSON.parse(text) as unknown;
+  } catch (error) {
+    log($, `ignoring unreadable ${path}: ${String(error)}`);
+    return null;
+  }
+}
+
+function leaseFileOf($: EngineInterface): LeaseFile {
+  return {
+    read: async () => {
+      const value = await readJson($, leasePath());
+      return isLease(value) ? value : null;
+    },
+    write: async (lease) => {
+      await makeParentDir($, leasePath());
+      await $.fs.write(leasePath(), JSON.stringify(lease));
+    },
+    settle: () => $.clock.sleep(LEASE_SETTLE_MS),
+  };
+}
+
+export async function leaseTick($: EngineInterface) {
+  if (!host.selfCliId || !(await findInstance($))) return;
+  const wasLeader = isLeader;
+  isLeader = await holdLease(
+    leaseFileOf($),
+    host.selfCliId,
+    Date.now(),
+    LEASE_EXPIRES_MS,
+  );
+  if (!isLeader) return;
+  if (!wasLeader) {
+    log($, "leading the board for this instance");
+    await $.store.delete(instanceKey(LEGACY_ENDS_KEY));
+  }
+  const refresh = wasLeader ? loadOnChange($) : load($);
+  void refresh.catch((error: unknown) =>
+    log($, `could not refresh the board: ${String(error)}`),
+  );
+}
+
+async function writeBoard($: EngineInterface, built: SessionCard[]) {
+  const path = boardPath();
+  const draft = `${path}.${host.selfCliId}.tmp`;
+  await makeParentDir($, path);
+  await $.fs.write(draft, JSON.stringify({ at: Date.now(), cards: built }));
+  const moved = await $.process.run(["/bin/mv", "-f", draft, path]);
+  if (moved.exitCode !== 0)
+    log($, `could not publish the board: ${moved.stderr.trim()}`);
+}
+
+async function showCards($: EngineInterface, shown: SessionCard[]) {
+  await update($, cards, () => shown);
+  await prunePending($, shown, Date.now());
+}
+
+export async function followBoard($: EngineInterface) {
+  if (isLeader || !host.instance) return;
+  const path = boardPath();
+  if (!(await $.fs.exists(path))) return;
+  const { mtimeMs } = await $.fs.stat(path);
+  if (mtimeMs === boardSeenAt) return;
+  const board = (await readJson($, path)) as { cards?: SessionCard[] } | null;
+  if (!board?.cards) return;
+  boardSeenAt = mtimeMs;
+  await showCards($, board.cards);
 }
 
 const SEND_URL_TO_PID = `ObjC.import("AppKit");
@@ -426,7 +547,7 @@ export async function followOtherSessions($: EngineInterface) {
 
 export async function poll($: EngineInterface) {
   await followOtherSessions($);
-  await load($);
+  if (isLeader) await load($);
 }
 
 export function readCards($: EngineInterface) {
@@ -491,8 +612,13 @@ async function sendAction(
 }
 
 export async function checkInbox($: EngineInterface) {
+  const dir = inboxDir();
+  if (!host.selfCliId || !(await $.fs.exists(dir))) return;
+  const { mtimeMs } = await $.fs.stat(dir);
+  if (mtimeMs === inboxSeenAt) return;
+  inboxSeenAt = mtimeMs;
   const path = inboxPathOf(host.selfCliId);
-  if (!host.selfCliId || !(await $.fs.exists(path))) return;
+  if (!(await $.fs.exists(path))) return;
   const raw = await $.fs.read(path);
   await removeFile($, path);
   const { text, at } = JSON.parse(raw) as { text?: string; at?: number };

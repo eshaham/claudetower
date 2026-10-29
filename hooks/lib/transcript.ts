@@ -2,8 +2,9 @@ import type { EngineInterface } from "claude-code";
 
 import type { SessionAction } from "../../types";
 import {
+  FIRST_TAIL_BYTES,
+  GIT_STATUS_TTL_MS,
   LAST_TEXT_CHARS,
-  STORE_KEYS,
   LOOKBACK_MS,
   PROMPT_CHARS,
   RUNNING_GRACE_MS,
@@ -13,8 +14,22 @@ import {
   host,
   log,
   sessionsRoot,
-  instanceKey,
 } from "./config";
+import type {
+  Limits,
+  TranscriptLine,
+  TranscriptState,
+} from "./transcript-state";
+import {
+  applyText,
+  emptyState,
+  hasPrompt,
+  isPrompt,
+  readingOf,
+  splitChunk,
+  textOf,
+  withoutQuotedReplies,
+} from "./transcript-state";
 
 export type SessionPr = { prNumber?: number; state?: string; repo?: string };
 
@@ -53,34 +68,23 @@ export type StartedSession = {
   hoursAgo: number;
 };
 
-type ContentBlock = {
-  type?: string;
-  text?: string;
-  name?: string;
-  input?: {
-    ask?: string;
-    actions?: { label?: string; message?: string }[];
-    questions?: { question?: string; options?: { label?: string }[] }[];
-  };
-};
-
-type TranscriptLine = {
-  lastPrompt?: string;
-  type?: string;
-  uuid?: string;
-  timestamp?: string;
-  isSidechain?: boolean;
-  message?: {
-    stop_reason?: string | null;
-    content?: string | ContentBlock[];
-  };
-};
-
-const REPLY_MARKER = /<!--\s*reply[^>]*-->/gi;
-
 const sessionFiles = new Map<string, { mtimeMs: number; file: SessionFile }>();
-const transcriptEnds = new Map<string, TranscriptEnd>();
+const transcripts = new Map<string, TranscriptCache>();
 export const startedFrom = new Map<string, StartedSession[]>();
+
+type TranscriptCache = {
+  offset: number;
+  size: number;
+  mtimeMs: number;
+  state: TranscriptState;
+};
+
+const LIMITS: Limits = {
+  lastTextChars: LAST_TEXT_CHARS,
+  promptChars: PROMPT_CHARS,
+  runningGraceMs: RUNNING_GRACE_MS,
+  toolGraceMs: TOOL_GRACE_MS,
+};
 
 export const projectOf = (s: SessionFile) => {
   const path = s.originCwd ?? s.cwd ?? "";
@@ -103,69 +107,52 @@ export const titleOf = (s: SessionFile, ticket: string) => {
 export const transcriptPath = (s: SessionFile) =>
   `${host.home}/.claude/projects/${(s.cwd ?? "").replace(/[/.]/g, "-")}/${s.cliSessionId}.jsonl`;
 
-const textOf = (line: TranscriptLine) => {
-  const content = line.message?.content;
-  if (typeof content === "string") return content;
-  return (content ?? [])
-    .filter((block) => block.type === "text")
-    .map((block) => block.text ?? "")
-    .join("\n");
+type WorktreeStatus = {
+  headMtimeMs: number;
+  indexMtimeMs: number;
+  checkedAt: number;
+  count: number;
 };
 
-const hasBlock = (line: TranscriptLine, type: string) => {
-  const content = line.message?.content;
-  return Array.isArray(content) && content.some((block) => block.type === type);
-};
+const gitDirs = new Map<string, string>();
+const worktreeStatuses = new Map<string, WorktreeStatus>();
 
-const withoutQuotedReplies = (text: string) => {
-  const unmarked = text.replace(REPLY_MARKER, "");
-  const own = unmarked
-    .split("\n")
-    .filter((line) => !line.trimStart().startsWith(">"))
-    .join("\n")
-    .trim();
-  return own || unmarked.trim();
-};
+async function gitDirOf($: EngineInterface, cwd: string) {
+  const known = gitDirs.get(cwd);
+  if (known !== undefined) return known;
+  const pointer = `${cwd}/.git`;
+  const stat = await $.fs.stat(pointer);
+  const dir =
+    stat.kind === "dir"
+      ? pointer
+      : ((await $.fs.read(pointer)).match(/^gitdir:\s*(.+)$/m)?.[1]?.trim() ??
+        "");
+  gitDirs.set(cwd, dir);
+  return dir;
+}
 
-const isPrompt = (line: TranscriptLine) => {
-  if (line.type !== "user" || hasBlock(line, "tool_result")) return false;
-  const text = textOf(line).trimStart();
-  return text !== "" && (!text.startsWith("<") || text.startsWith("<!--"));
-};
-
-const SUGGESTION_TOOLS = /(__wrap_up|^AskUserQuestion)$/;
-
-const suggestedActionsOf = (turn: TranscriptLine[]) => {
-  const blocks = turn.flatMap((line) =>
-    Array.isArray(line.message?.content) ? line.message.content : [],
-  );
-  const call = blocks.findLast(
-    (block) =>
-      block.type === "tool_use" && SUGGESTION_TOOLS.test(block.name ?? ""),
-  );
-  const input = call?.input;
-  const asked = input?.questions?.[0];
-  return {
-    question: input?.ask ?? asked?.question ?? "",
-    options: [
-      ...(input?.actions ?? []).map((action) => ({
-        label: action.label ?? "",
-        message: action.message || action.label || "",
-      })),
-      ...(asked?.options ?? []).map((option) => ({
-        label: option.label ?? "",
-        message: option.label ?? "",
-      })),
-    ].filter((action) => action.label !== ""),
-  };
-};
-
-const timeOf = (line: TranscriptLine | undefined) =>
-  line?.timestamp ? Date.parse(line.timestamp) : 0;
+async function mtimeOf($: EngineInterface, path: string) {
+  return (await $.fs.exists(path)) ? (await $.fs.stat(path)).mtimeMs : 0;
+}
 
 async function countUncommitted($: EngineInterface, cwd: string) {
   if (!cwd.includes("/.claude/worktrees/") || !(await $.fs.exists(cwd)))
     return 0;
+  const gitDir = await gitDirOf($, cwd);
+  const [headMtimeMs, indexMtimeMs] = gitDir
+    ? await Promise.all([
+        mtimeOf($, `${gitDir}/HEAD`),
+        mtimeOf($, `${gitDir}/index`),
+      ])
+    : [0, 0];
+  const known = worktreeStatuses.get(cwd);
+  if (
+    known &&
+    known.headMtimeMs === headMtimeMs &&
+    known.indexMtimeMs === indexMtimeMs &&
+    Date.now() - known.checkedAt < GIT_STATUS_TTL_MS
+  )
+    return known.count;
   const status = await $.process.run([
     "git",
     "-C",
@@ -177,95 +164,120 @@ async function countUncommitted($: EngineInterface, cwd: string) {
     log($, `git status failed in ${cwd}: ${status.stderr.trim()}`);
     return 0;
   }
-  return status.stdout.split("\n").filter(Boolean).length;
+  const count = status.stdout.split("\n").filter(Boolean).length;
+  worktreeStatuses.set(cwd, {
+    headMtimeMs,
+    indexMtimeMs: await mtimeOf($, `${gitDir}/index`),
+    checkedAt: Date.now(),
+    count,
+  });
+  return count;
 }
 
-function parseLines(
+async function readRange(
   $: EngineInterface,
   path: string,
-  raw: string,
-  isPartial: boolean,
+  start: number,
+  end: number,
 ) {
-  const lines: TranscriptLine[] = [];
-  let recordedPrompt = "";
-  for (const text of raw.split("\n").slice(isPartial ? 1 : 0)) {
-    if (text.trim() === "") continue;
-    try {
-      const line = JSON.parse(text) as TranscriptLine;
-      if (line.type === "last-prompt" && line.lastPrompt)
-        recordedPrompt = line.lastPrompt;
-      if (
-        !line.isSidechain &&
-        (line.type === "user" || line.type === "assistant")
-      )
-        lines.push(line);
-    } catch (error) {
-      log(
-        $,
-        `skipped an unreadable transcript line in ${path}: ${String(error)}`,
-      );
-    }
-  }
-  return { lines, recordedPrompt };
+  const read = await $.process.run([
+    "/bin/sh",
+    "-c",
+    'tail -c +"$1" "$2" | head -c "$3"',
+    "sh",
+    String(start + 1),
+    path,
+    String(end - start),
+  ]);
+  if (read.exitCode !== 0) throw new Error(read.stderr.trim());
+  return read.stdout;
 }
 
-async function readTranscriptEnd(
+function noteSkipped(
   $: EngineInterface,
-  s: SessionFile,
+  path: string,
+  before: TranscriptState,
+  after: TranscriptState,
+) {
+  if (after.skippedLines > before.skippedLines)
+    log(
+      $,
+      `skipped ${after.skippedLines - before.skippedLines} unreadable transcript lines in ${path}`,
+    );
+}
+
+async function readFromTail($: EngineInterface, path: string, size: number) {
+  let state = emptyState();
+  let tailBytes = 0;
+  for (const bytes of [FIRST_TAIL_BYTES, TAIL_BYTES]) {
+    const start = Math.max(0, size - bytes);
+    const chunk = splitChunk(await readRange($, path, start, size), start > 0);
+    const next = applyText(emptyState(), chunk.complete, LIMITS);
+    noteSkipped($, path, state, next);
+    state = next;
+    tailBytes = chunk.tailBytes;
+    if (start === 0 || hasPrompt(state)) break;
+  }
+  return { state, offset: size - tailBytes };
+}
+
+async function readAppended(
+  $: EngineInterface,
+  path: string,
+  cached: TranscriptCache,
+  size: number,
+) {
+  const chunk = splitChunk(
+    await readRange($, path, cached.offset, size),
+    false,
+  );
+  const state = applyText(cached.state, chunk.complete, LIMITS);
+  noteSkipped($, path, cached.state, state);
+  return { state, offset: size - chunk.tailBytes };
+}
+
+export async function readTranscript(
+  $: EngineInterface,
   path: string,
   stat: { mtimeMs: number; size: number },
-): Promise<TranscriptEnd> {
-  const { mtimeMs } = stat;
-  const tail = await $.process.run(["tail", "-c", String(TAIL_BYTES), path]);
-  if (tail.exitCode !== 0) throw new Error(tail.stderr.trim());
-  const { lines, recordedPrompt } = parseLines(
-    $,
-    path,
-    tail.stdout,
-    stat.size > TAIL_BYTES,
-  );
-  const last = lines[lines.length - 1];
-  const promptIndex = lines.findLastIndex(isPrompt);
-  const turn = lines
-    .slice(promptIndex + 1)
-    .filter((line) => line.type === "assistant");
-  const promptLine =
-    (recordedPrompt &&
-      lines.findLast(
-        (line) =>
-          isPrompt(line) && textOf(line).trim() === recordedPrompt.trim(),
-      )) ||
-    lines[promptIndex];
-  const isWaitingOnTool =
-    last?.type === "assistant" && hasBlock(last, "tool_use");
-  const endedCleanly =
-    last?.type === "assistant" &&
-    !isWaitingOnTool &&
-    last.message?.stop_reason !== null;
-  const isStopped =
-    endedCleanly ||
-    Date.now() - mtimeMs > (isWaitingOnTool ? TOOL_GRACE_MS : RUNNING_GRACE_MS);
-  const { question, options } = suggestedActionsOf(turn);
-  return {
-    mtimeMs,
-    lastAt: timeOf(last) || mtimeMs,
-    isStopped,
-    lastAssistantId: turn[turn.length - 1]?.uuid ?? "",
-    prompt: withoutQuotedReplies(
-      recordedPrompt || (promptLine ? textOf(promptLine) : ""),
-    )
-      .replace(/\s+/g, " ")
-      .slice(0, PROMPT_CHARS),
-    promptAt: timeOf(promptLine),
-    lastText: turn
-      .map(textOf)
-      .filter(Boolean)
-      .join("\n\n")
-      .slice(-LAST_TEXT_CHARS),
-    question,
-    options,
-    uncommittedFiles: isStopped ? await countUncommitted($, s.cwd ?? "") : 0,
-  };
+) {
+  const cached = transcripts.get(path);
+  if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs)
+    return cached;
+  const read =
+    cached && stat.size >= cached.offset
+      ? stat.size === cached.offset
+        ? { state: cached.state, offset: cached.offset }
+        : await readAppended($, path, cached, stat.size)
+      : await readFromTail($, path, stat.size);
+  const next = { ...read, size: stat.size, mtimeMs: stat.mtimeMs };
+  transcripts.set(path, next);
+  return next;
+}
+
+async function transcriptEndOf(
+  $: EngineInterface,
+  s: SessionFile,
+  now: number,
+): Promise<TranscriptEnd | null> {
+  const path = transcriptPath(s);
+  if (!(await $.fs.exists(path))) return null;
+  const stat = await $.fs.stat(path);
+  if (now - stat.mtimeMs > LOOKBACK_MS) return null;
+  try {
+    const { state } = await readTranscript($, path, stat);
+    const reading = readingOf(state, stat.mtimeMs, now, LIMITS);
+    return {
+      ...reading,
+      mtimeMs: stat.mtimeMs,
+      uncommittedFiles: reading.isStopped
+        ? await countUncommitted($, s.cwd ?? "")
+        : 0,
+    };
+  } catch (error) {
+    log($, `could not read the transcript of "${s.title}": ${String(error)}`);
+    return null;
+  }
 }
 
 export async function sessionDirs($: EngineInterface) {
@@ -340,65 +352,9 @@ const latestRunsOnly = (live: Live[]) => {
   );
 };
 
-type EndStore = Record<string, TranscriptEnd>;
-
-async function transcriptEndOf(
-  $: EngineInterface,
-  s: SessionFile,
-  now: number,
-  shared: EndStore,
-) {
-  const path = transcriptPath(s);
-  if (!(await $.fs.exists(path))) return null;
-  const stat = await $.fs.stat(path);
-  if (now - stat.mtimeMs > LOOKBACK_MS) return null;
-  const cached = transcriptEnds.get(path) ?? shared[path];
-  const isIdleRun =
-    cached && !cached.isStopped && now - cached.mtimeMs > RUNNING_GRACE_MS;
-  if (cached?.mtimeMs === stat.mtimeMs && !isIdleRun) {
-    transcriptEnds.set(path, cached);
-    return cached;
-  }
-  try {
-    const end = await readTranscriptEnd($, s, path, stat);
-    transcriptEnds.set(path, end);
-    return end;
-  } catch (error) {
-    log($, `could not read the transcript of "${s.title}": ${String(error)}`);
-    return null;
-  }
-}
-
-async function shareEnds(
-  $: EngineInterface,
-  shared: EndStore,
-  paths: string[],
-) {
-  const mine = Object.fromEntries(
-    paths.flatMap((path) => {
-      const end = transcriptEnds.get(path);
-      return end ? [[path, end] as const] : [];
-    }),
-  );
-  const changed = paths.some(
-    (path) => mine[path] && mine[path].mtimeMs !== shared[path]?.mtimeMs,
-  );
-  if (changed || Object.keys(shared).some((path) => !paths.includes(path)))
-    await $.store.set(instanceKey(STORE_KEYS.ends), mine);
-}
-
 export async function loadLive($: EngineInterface, now: number) {
   const files = await loadSessionFiles($, now);
-  const shared = ((await $.store.get(instanceKey(STORE_KEYS.ends))) ??
-    {}) as EndStore;
-  const ends = await Promise.all(
-    files.map((s) => transcriptEndOf($, s, now, shared)),
-  );
-  await shareEnds(
-    $,
-    shared,
-    files.filter((_, index) => ends[index]).map(transcriptPath),
-  );
+  const ends = await Promise.all(files.map((s) => transcriptEndOf($, s, now)));
   return latestRunsOnly(
     files.flatMap((s, index) => {
       const end = ends[index];

@@ -29,6 +29,12 @@ The order is plain arithmetic on that reading, recalculated on every refresh wit
 
 What counts as urgent is yours to set, in your own words. The first time the panel opens, a card offers a short setup in a new session; after that, tell any session what should rank higher or lower and the `claudetower:ranking` skill updates your ranking file, previewing the change on made-up examples before saving. [docs/ranking.md](docs/ranking.md) explains the whole model.
 
+## How it stays light
+
+Every open session runs claudetower, but only one per Desktop instance does the work. Sessions share a lease file with a heartbeat; the holder reads transcripts, asks Sonnet, looks up PRs and tickets, and writes the finished board to a file. The others redraw from that file when its modified time changes, which costs a file check every 2 seconds and no processes. When the leader's session closes, another takes over within about 30 seconds.
+
+The leader reads each transcript once from its last 256 KB (further back only when that holds no prompt), then reads only the bytes appended since, keeping each session's state from the new lines alone. It checks for changes every 5 seconds and folds a burst of changes into one refresh. `git status` for a worktree is reused until its HEAD or index changes, or for 5 minutes.
+
 ## How it learns each project
 
 claudetower doesn't assume any tool. Once per project, and again every 7 days while the project has active sessions, Sonnet profiles it from the repo: its git remote, recent branches, session titles, CI workflows, README and CLAUDE.md, plus the MCP tools your Claude Code can call. The profile names the project's ticket prefixes, the tool that looks up one of its tickets, the services it depends on, and what a P0 looks like there. Session reads use it to judge priority.
@@ -84,7 +90,13 @@ Clone the repo and load it from your clone in every session, so your edits apply
 
 `CLAUDE_CODE_PLUGIN_DIR_WATCH` makes running sessions reload the panel when its files change. Sessions read these settings when they start, so restart the Desktop app once after adding them.
 
-Check a change with `claude plugin validate .`.
+Check a change with `claude plugin validate .`, and run the tests with Node 22 or later:
+
+```bash
+npx tsx@4 --test tests/*.test.ts
+```
+
+`bench/run.sh <work-dir> [before-ref]` measures CPU with several sessions open, against a copy of your own sessions. It copies the session records and the last 2 MB of each transcript of the default Desktop instance into `<work-dir>/sandbox`, starts 5 sessions of the board code there (with a stub in place of the model), changes 0, 20 or 60 transcripts every 2 seconds, either touching them or appending a line, and prints each session's CPU (including the processes it starts) and its transcript reads, `git status` runs and change checks. With a git ref, it measures that version first, for a before and after.
 
 ## License
 
