@@ -25,6 +25,7 @@ import {
   emptyState,
   hasPrompt,
   isPrompt,
+  promptTextOf,
   readingOf,
   splitChunk,
   textOf,
@@ -393,7 +394,7 @@ export async function digestOf($: EngineInterface, path: string) {
     }
     if (line.isSidechain) return;
     if (isPrompt(line)) {
-      const text = withoutQuotedReplies(textOf(line));
+      const text = withoutQuotedReplies(promptTextOf(line));
       if (!firstAsk) firstAsk = text.slice(0, FIRST_ASK_CHARS);
       promptCount += 1;
       keepLast(prompts, text.slice(0, DIGEST_PROMPT_CHARS), DIGEST_PROMPTS);

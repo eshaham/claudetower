@@ -69,6 +69,31 @@ describe("transcript state", () => {
     assert.deepEqual(reading.options, []);
   });
 
+  it("starts a new turn on a prompt that follows a system reminder", () => {
+    const remindedPrompt = JSON.stringify({
+      type: "user",
+      uuid: "u8",
+      timestamp: new Date(Date.UTC(2026, 9, 29, 10, 8)).toISOString(),
+      message: {
+        content: [
+          {
+            type: "text",
+            text: "<system-reminder>\nLinked sessions now\n</system-reminder>\n\n",
+          },
+          { type: "text", text: "status?" },
+        ],
+      },
+    });
+    const state = readAll(
+      `${transcript}\n${remindedPrompt}\n${replyLine("Still running", 9)}\n${lastPromptLine("Fix the bug")}\n`,
+    );
+    const reading = readingOf(state, NOW, NOW, limits);
+    assert.equal(reading.prompt, "status?");
+    assert.equal(reading.lastText, "Still running");
+    assert.equal(reading.question, "");
+    assert.deepEqual(reading.options, []);
+  });
+
   it("treats a session waiting on a tool as running until its grace ends", () => {
     const state = readAll(`${promptLine("Run it", 1)}\n${toolCallLine(2)}\n`);
     const mtime = NOW - 60_000;

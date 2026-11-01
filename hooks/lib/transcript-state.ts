@@ -60,6 +60,7 @@ export type Limits = {
 };
 
 const REPLY_MARKER = /<!--\s*reply[^>]*-->/gi;
+const SYSTEM_REMINDER = /<system-reminder>[\s\S]*?<\/system-reminder>/g;
 const SUGGESTION_TOOLS = /(__wrap_up|^AskUserQuestion)$/;
 const PROMPTS_KEPT = 20;
 
@@ -83,6 +84,9 @@ export const textOf = (line: TranscriptLine) => {
     .join("\n");
 };
 
+export const promptTextOf = (line: TranscriptLine) =>
+  textOf(line).replace(SYSTEM_REMINDER, "").trim();
+
 const hasBlock = (line: TranscriptLine, type: string) => {
   const content = line.message?.content;
   return Array.isArray(content) && content.some((block) => block.type === type);
@@ -100,7 +104,7 @@ export const withoutQuotedReplies = (text: string) => {
 
 export const isPrompt = (line: TranscriptLine) => {
   if (line.type !== "user" || hasBlock(line, "tool_result")) return false;
-  const text = textOf(line).trimStart();
+  const text = promptTextOf(line);
   return text !== "" && (!text.startsWith("<") || text.startsWith("<!--"));
 };
 
@@ -156,7 +160,7 @@ function applyLine(
       last,
       prompts: [
         ...state.prompts,
-        { text: textOf(line), at: timeOf(line) },
+        { text: promptTextOf(line), at: timeOf(line) },
       ].slice(-PROMPTS_KEPT),
       turnText: "",
       turnLastId: "",
@@ -222,10 +226,13 @@ export function readingOf(
 ): TranscriptReading {
   const recorded = state.recordedPrompt.trim();
   const latest = state.prompts[state.prompts.length - 1];
-  const promptSeen =
-    (recorded &&
-      state.prompts.findLast((seen) => seen.text.trim() === recorded)) ||
-    latest;
+  const recordedSeen =
+    recorded && state.prompts.findLast((seen) => seen.text.trim() === recorded);
+  const isRecordedStale = !!recordedSeen && recordedSeen !== latest;
+  const promptSeen = (!isRecordedStale && recordedSeen) || latest;
+  const promptText = isRecordedStale
+    ? latest.text
+    : state.recordedPrompt || promptSeen?.text || "";
   const last = state.last;
   const endedCleanly =
     last?.type === "assistant" &&
@@ -238,7 +245,7 @@ export function readingOf(
     lastAt: last?.at || mtimeMs,
     isStopped: endedCleanly || now - mtimeMs > grace,
     lastAssistantId: state.turnLastId,
-    prompt: withoutQuotedReplies(state.recordedPrompt || promptSeen?.text || "")
+    prompt: withoutQuotedReplies(promptText)
       .replace(/\s+/g, " ")
       .slice(0, limits.promptChars),
     promptAt: promptSeen?.at ?? 0,
