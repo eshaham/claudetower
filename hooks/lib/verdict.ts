@@ -25,13 +25,14 @@ const RUN_PROBLEM_URGENCY = 70;
 
 const SESSION_RULES = `You read how a Claude Code session ended and tell its user where it stands.
 Answer with one JSON object and nothing else:
-{"status": "needs_you" | "waiting_on_others" | "done", "kind": "do" | "decide" | "review" | null, "urgency": number, "labels": string[], "waitingFor": string, "followUps": string[], "isLastMile": boolean, "isFinished": boolean, "canFinishAlone": boolean}
+{"status": "needs_you" | "waiting_on_others" | "done", "kind": "do" | "decide" | "review" | null, "urgency": number, "labels": string[], "waitingFor": string, "followUps": string[], "isLastMile": boolean, "isFinished": boolean, "canFinishAlone": boolean, "isOfferCurrent": boolean}
 - needs_you: the session cannot usefully go on until the user acts, answers, decides or reviews. kind says which: do = act outside the session (create a credential, set a secret, run or approve something elsewhere); decide = a choice, approval or go-ahead; review = look at something the session produced.
 - waiting_on_others: it waits on CI, a bot review, a deploy, another session, a teammate or a later time.
 - done: the work is finished and nothing is pending.
 - kind is null unless status is needs_you.
 - Use sessionHistory (the first ask, your user's later messages, and the session's earlier replies) to understand what the session is for and how much is at stake; sessionsLastWords say where it stands now.
-- The session's last words can be overtaken by what happened after them. sessionsStartedFromThis lists sessions the user started from this one (for example by clicking a proposed-session card), and openPullRequests is the live PR state. If the ask was to start a session and one was started, or to merge a PR that is no longer open, that ask is done.
+- The session's last words can be overtaken by what happened after them. sessionsStartedFromThis lists sessions the user started from this one (for example by clicking a proposed-session card), and openPullRequests is the live PR state. closedPullRequests lists its PRs that already merged or closed. If the ask was to start a session and one was started, or to merge a PR that is no longer open, that ask is done.
+- workingDirectoryRemoved: the session's working folder was deleted (usually its worktree, cleaned up after its PR merged). It cannot do more work there; unless something it asked for is still open, it is finished.
 - If what the session waits for was due at a time that is already past (compare with now), it is not waiting anymore: the user should check the outcome, so it is needs_you with kind review.
 - urgency: 0 to 100, how much the task matters now. Use project.criticalSignals and project.summary to judge what is serious for this project. Guidance:
   - 90-100: something live is broken for users, data is at risk, or there is a security incident.
@@ -45,6 +46,7 @@ Answer with one JSON object and nothing else:
 - followUps: up to 3 things the user can do right now that need this session's work, at most 15 words each (merge a ready PR, ask a reviewer). Never a step that depends on something that has not happened yet; that belongs in waitingFor. Never "archive this session". Empty when there are none.
 - isLastMile: true when the work is done or nearly done and only a small final step from the user is left: merge a ready PR, answer a last yes/no, glance at a finished change. False when real work remains.
 - isFinished: true when this session has nothing left to do and the user could archive it now: its task is complete, any PR it opened has merged or been closed, and nothing it is waiting for will bring it back. A session that hands remaining work to another session, ticket or person is finished. When in doubt, false.
+- isOfferCurrent: false when suggestedActions have been overtaken by what happened since (an option to merge a PR that already merged, to start something already started), so showing them would mislead. True otherwise, and when there are none.
 - canFinishAlone: true when the session could take everything left to a merged PR and a finished task on its own, given a standing go-ahead from the user to finish the work, commit, push, open and merge its PR, and archive. That covers steps it only waits on a go-ahead for, fixing failing checks, answering automated or bot review, and waiting for checks to finish. False when it needs information or a real choice from the user, an action outside the session (a credential, a secret, an approval elsewhere), a human reviewer, or a risky step beyond merging (a production deploy, a data migration, an infrastructure apply). False when isFinished is true.`;
 
 const urgencyRulesOf = (ranking: Ranking) =>
@@ -121,6 +123,7 @@ const parseSessionVerdict = (
     isLastMile: raw.isLastMile === true,
     isFinished: raw.isFinished === true,
     canFinishAlone: raw.canFinishAlone === true && raw.isFinished !== true,
+    isOfferCurrent: raw.isOfferCurrent !== false,
   };
 };
 
@@ -148,6 +151,7 @@ const isRun = (s: SessionFile) => Boolean(s.scheduledTaskId);
 
 export type VerdictContext = {
   openPrs: number[];
+  closedPrs: string[];
   project: ProjectProfile | undefined;
   ticket: (TicketInfo & { id: string }) | null;
   ranking: Ranking;
@@ -160,6 +164,8 @@ export const verdictKeyOf = ({ s, end }: Live, context: VerdictContext) =>
     end.lastAssistantId,
     `started${startedFrom.get(s.sessionId)?.length ?? 0}`,
     `open${context.openPrs.join(",")}`,
+    `closed${context.closedPrs.length}`,
+    ...(end.isWorkDirGone ? ["gone"] : []),
     `project${context.project?.checkedAt ?? 0}`,
     isRun(s)
       ? "run"
@@ -198,6 +204,8 @@ async function promptOf(
       services: context.project.services,
     },
     openPullRequests: context.openPrs,
+    closedPullRequests: context.closedPrs,
+    workingDirectoryRemoved: end.isWorkDirGone === true,
     ticket: context.ticket && {
       id: context.ticket.id,
       priority: context.ticket.priority,

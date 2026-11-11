@@ -150,9 +150,13 @@ const enrich = (live: Live[], stores: Stores): Enriched[] => {
   const rankingFingerprint = readingFingerprintOf(stores.ranking);
   return live.map((one) => {
     const project = stores.projects[projectRootOf(one.s)];
-    const openPrs = prBadgesOf(one.s.prs, stores.prs)
+    const badges = prBadgesOf(one.s.prs, stores.prs);
+    const openPrs = badges
       .filter((pr) => isOpenPr(pr.state))
       .map((pr) => pr.number);
+    const closedPrs = badges
+      .filter((pr) => !isOpenPr(pr.state))
+      .map((pr) => `#${pr.number} ${pr.state}`);
     const ticket = ticketOf(one.s, ticketPatternOf(project));
     const info = stores.tickets[ticket];
     return {
@@ -160,6 +164,7 @@ const enrich = (live: Live[], stores: Stores): Enriched[] => {
       ticket,
       context: {
         openPrs,
+        closedPrs,
         project,
         ticket: ticket && info ? { ...info, id: ticket } : null,
         ranking: stores.ranking,
@@ -192,6 +197,8 @@ const cardOf = (
         ? SILENT_STOP
         : null;
   const info = stores.tickets[ticket];
+  const verdict = current ?? stored?.verdict ?? null;
+  const isOfferStale = verdict?.isOfferCurrent === false;
   return classify(
     {
       id: s.sessionId,
@@ -203,13 +210,13 @@ const cardOf = (
       ticketPriority: info?.isOpen ? info.priority : 0,
       prs: prBadgesOf(s.prs, stores.prs),
       uncommittedFiles: end.uncommittedFiles,
-      question: end.question,
-      options: end.options,
+      question: isOfferStale ? "" : end.question,
+      options: isOfferStale ? [] : end.options,
       isRunning: !end.isStopped,
       isScheduled: Boolean(s.scheduledTaskId),
       ageMs: now - end.lastAt,
       lastAt: end.lastAt,
-      verdict: current ?? stored?.verdict ?? null,
+      verdict,
       isRereading: end.isStopped && current === null,
       isAutoFinish: one.context.isAutoFinish,
       childIds: openChildIdsOf(s.sessionId, liveIds),
@@ -583,20 +590,14 @@ export async function setAutoFinish(
   );
 }
 
-const WAKE_ATTEMPTS = 4;
-
 async function kickOff($: EngineInterface, card: SessionCard, hold: Nudge) {
-  let isDelivered = await deliver($, card, AUTO_FINISH_ACTION.message);
-  if (!isDelivered) {
-    log($, `auto-finish: opening "${card.title}" to wake it`);
-    await openSession($, card.id);
-    for (let attempt = 0; attempt < WAKE_ATTEMPTS && !isDelivered; attempt += 1)
-      isDelivered = await deliver($, card, AUTO_FINISH_ACTION.message);
-  }
+  const isDelivered =
+    (await deliver($, card, AUTO_FINISH_ACTION.message)) ||
+    (await sendThroughApp($, card, AUTO_FINISH_ACTION.message));
   if (!isDelivered) {
     log(
       $,
-      `auto-finish: "${card.title}" did not wake; the board retries later`,
+      `auto-finish: could not reach "${card.title}"; the board retries later`,
     );
     return;
   }
@@ -639,7 +640,7 @@ async function sendThroughApp(
   card: SessionCard,
   message: string,
 ) {
-  if (card.cliId === host.selfCliId) return false;
+  if (card.cliId === host.selfCliId || !card.cliId) return false;
   const input = { session_id: card.id, message };
   const { decision } = await $.tool.check({ tool: SEND_TO_SESSION, input });
   if (decision !== "allow") {
@@ -649,6 +650,7 @@ async function sendThroughApp(
     );
     return false;
   }
+  await expectRelay($, card.cliId, message);
   const sent = await $.tool.call({ tool: SEND_TO_SESSION, ...input });
   const isSent =
     sent.deny === undefined &&
@@ -866,36 +868,79 @@ async function sendAction(
 ) {
   await markPending($, card.id);
   if (await deliver($, card, action.message)) return;
+  const isRelayed = await sendThroughApp($, card, action.message).catch(
+    (error: unknown) => {
+      log($, `could not relay to "${card.title}": ${String(error)}`);
+      return false;
+    },
+  );
+  if (isRelayed) return;
   await clearPending($, card.id);
-  $.ui.toast(`"${card.title}" isn't running, so it opened instead`);
+  $.ui.toast(`Could not reach "${card.title}", so it opened instead`);
   await openSession($, card.id);
 }
 
-export async function takeAutoFinishMessage($: EngineInterface, text: string) {
-  if (!text.includes(AUTO_FINISH_ACTION.message)) return false;
-  if (!host.selfCliId) await discoverHost($);
-  if (!(await findInstance($))) return false;
+type Relay = { text: string; at: number };
+type Relays = Record<string, Relay[]>;
+
+const RELAY_TTL_MS = 30 * MINUTE_MS;
+
+async function readRelays($: EngineInterface, now: number) {
+  const stored = ((await $.store.get(instanceKey(STORE_KEYS.relays))) ??
+    {}) as Relays;
+  return Object.fromEntries(
+    Object.entries(stored)
+      .map(([cliId, list]): [string, Relay[]] => [
+        cliId,
+        list.filter((relay) => now - relay.at < RELAY_TTL_MS),
+      ])
+      .filter(([, list]) => list.length > 0),
+  ) as Relays;
+}
+
+async function expectRelay($: EngineInterface, cliId: string, text: string) {
+  const now = Date.now();
+  const relays = await readRelays($, now);
+  await $.store.set(instanceKey(STORE_KEYS.relays), {
+    ...relays,
+    [cliId]: [...(relays[cliId] ?? []), { text, at: now }],
+  });
+}
+
+async function markAutoFinishStarted($: EngineInterface) {
   const board = (await readJson($, boardPath())) as {
     cards?: SessionCard[];
   } | null;
   const self = board?.cards?.find((card) => card.cliId === host.selfCliId);
-  if (!self || !(self.id in (await readAutoFinishMarks($)))) return false;
+  if (!self) return;
   const nudges = await readNudges($);
-  await $.store.set(instanceKey(STORE_KEYS.nudges), {
-    ...nudges,
-    [self.id]: {
-      forTurn: self.lastAt,
-      count: 0,
-      ...nudges[self.id],
-      at: Date.now(),
-      isDelivered: true,
-      hasStarted: true,
-    },
+  await writeNudge($, self.id, {
+    forTurn: self.lastAt,
+    count: 0,
+    ...nudges[self.id],
+    at: Date.now(),
+    isDelivered: true,
+    hasStarted: true,
   });
+}
+
+export async function takeRelayedMessage($: EngineInterface, text: string) {
+  if (!host.selfCliId) await discoverHost($);
+  if (!host.selfCliId || !(await findInstance($))) return false;
+  const now = Date.now();
+  const relays = await readRelays($, now);
+  const mine = relays[host.selfCliId] ?? [];
+  const found = mine.find((relay) => text.includes(relay.text));
+  if (!found) return false;
+  await $.store.set(instanceKey(STORE_KEYS.relays), {
+    ...relays,
+    [host.selfCliId]: mine.filter((relay) => relay !== found),
+  });
+  if (found.text === AUTO_FINISH_ACTION.message) await markAutoFinishStarted($);
   void $.prompt
-    .submit({ text: AUTO_FINISH_ACTION.message, asUser: true })
+    .submit({ text: found.text, asUser: true })
     .catch((error: unknown) =>
-      log($, `could not submit the auto-finish message: ${String(error)}`),
+      log($, `could not submit a relayed message: ${String(error)}`),
     );
   return true;
 }

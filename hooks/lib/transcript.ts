@@ -59,6 +59,7 @@ export type TranscriptEnd = {
   question: string;
   options: SessionAction[];
   uncommittedFiles: number;
+  isWorkDirGone?: boolean;
 };
 
 export type Live = { s: SessionFile; end: TranscriptEnd };
@@ -278,6 +279,7 @@ async function transcriptEndOf(
       uncommittedFiles: reading.isStopped
         ? await countUncommitted($, s.cwd ?? "")
         : 0,
+      isWorkDirGone: !!s.cwd && !(await $.fs.exists(s.cwd)),
     };
   } catch (error) {
     log($, `could not read the transcript of "${s.title}": ${String(error)}`);

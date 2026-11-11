@@ -54,6 +54,7 @@ export const STORE_KEYS = {
   collapsedGroups: "collapsed-groups",
   autoFinish: "auto-pilot",
   nudges: "auto-pilot-nudges",
+  relays: "relays",
 } as const;
 
 export const TICKET_TTL_MS = 30 * MINUTE_MS;

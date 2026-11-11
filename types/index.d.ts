@@ -12,6 +12,7 @@ export type Verdict = {
   isLastMile: boolean;
   isFinished: boolean;
   canFinishAlone: boolean;
+  isOfferCurrent?: boolean;
 };
 
 export type BandBadge = { name: string; color?: string };
