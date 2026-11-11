@@ -326,7 +326,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
       paddingX={1}
     >
       <Box key={`body-${card.id}`} position="relative" flexDirection="column">
-        <Box paddingRight={9}>
+        <Box paddingRight={13}>
           {Client ? (
             <Text weight="semibold" wrap="wrap">
               {card.title}
@@ -372,7 +372,15 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
           </Box>
         )}
         {!card.isScheduled && (
-          <Box position="absolute" top={0} right={4}>
+          <Box
+            position="absolute"
+            top={0}
+            right={4}
+            flexDirection="row"
+            columnGap={1}
+            alignItems="center"
+          >
+            {Svg && Client && <Text dimColor={!isOnAutoPilot(card)}>Auto</Text>}
             {Svg && Client ? (
               <Svg
                 source={autoPilotSwitch(isOnAutoPilot(card))}

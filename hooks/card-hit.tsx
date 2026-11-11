@@ -9,12 +9,9 @@ type Props = {
   isGroup?: boolean;
 };
 
-type State = Props & { isHintShown: boolean };
-
 const COMPOSE_COLUMNS = 4;
-const AUTO_PILOT_COLUMNS = 5;
+const AUTO_PILOT_COLUMNS = 9;
 const CORNER_ROWS = 2;
-const AUTO_PILOT_HINT = "Auto Pilot";
 
 const zoneOf = (
   current: Props,
@@ -35,22 +32,19 @@ const zoneOf = (
   return "open";
 };
 
-const CardHit: ClientModule<Props, State> = (props, surface) => {
-  const { Box, Text } = surface.elements;
+const CardHit: ClientModule<Props, Props> = (props, surface) => {
+  const { Box } = surface.elements;
   const previous = surface.state;
 
   if (previous === undefined) {
     let isPressed = false;
     surface.onPointer((event) => {
-      const current = surface.state ?? { ...props, isHintShown: false };
-      const zone = zoneOf(current, surface.columns, event.x, event.y);
-      const isHintShown = event.type !== "leave" && zone === "auto-pilot";
-      if (isHintShown !== current.isHintShown)
-        surface.setState({ ...current, isHintShown });
       if (event.button !== "left") return;
       if (event.type === "down") isPressed = true;
       if (event.type !== "up" || !isPressed) return;
       isPressed = false;
+      const current = surface.state ?? props;
+      const zone = zoneOf(current, surface.columns, event.x, event.y);
       const message: CardHitMessage = { kind: zone, id: current.id };
       surface.post(message);
     });
@@ -61,23 +55,9 @@ const CardHit: ClientModule<Props, State> = (props, surface) => {
     previous.canAutoPilot !== props.canAutoPilot ||
     previous.isGroup !== props.isGroup
   )
-    surface.setState({ ...props, isHintShown: previous?.isHintShown ?? false });
+    surface.setState(props);
 
-  return (
-    <Box width="100%" height="100%">
-      {previous?.isHintShown && (
-        <Box
-          position="absolute"
-          top={1}
-          right={COMPOSE_COLUMNS}
-          paddingX={1}
-          backgroundColor="text"
-        >
-          <Text color="inverseText">{AUTO_PILOT_HINT}</Text>
-        </Box>
-      )}
-    </Box>
-  );
+  return <Box width="100%" height="100%" />;
 };
 
 export default CardHit;
