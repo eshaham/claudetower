@@ -50,3 +50,10 @@ const ACCENT = "#d97757";
 
 export const autoFinishSwitch = (isOn: boolean) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 16" width="${SWITCH_WIDTH}" height="${SWITCH_HEIGHT}"><rect x="1" y="1" width="26" height="14" rx="7" fill="${isOn ? ACCENT : "none"}" stroke="${isOn ? ACCENT : CHEVRON_COLOR}" stroke-width="1.5"/><circle cx="${isOn ? 20 : 8}" cy="8" r="4.5" fill="${isOn ? "#ffffff" : CHEVRON_COLOR}"/></svg>`;
+
+export const SPINNER_SIZE = 10;
+
+const WORKING_COLOR = "#3fb950";
+
+export const spinner = () =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="${SPINNER_SIZE}" height="${SPINNER_SIZE}"><circle cx="8" cy="8" r="6" fill="none" stroke="${WORKING_COLOR}" stroke-opacity="0.25" stroke-width="2.5"/><path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke="${WORKING_COLOR}" stroke-width="2.5" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur="0.9s" repeatCount="indefinite"/></path></svg>`;
