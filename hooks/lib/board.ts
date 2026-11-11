@@ -654,11 +654,11 @@ async function takeAutoFinishStep(
       (await deliver($, card, AUTO_FINISH_ACTION.message)) ||
       sendThroughApp($, card, AUTO_FINISH_ACTION.message)
     );
-  const isArchived = await archiveDirectly($, card).catch((error: unknown) => {
+  if (card.cliId === host.selfCliId) return false;
+  return archiveDirectly($, card).catch((error: unknown) => {
     log($, `could not archive "${card.title}": ${String(error)}`);
     return false;
   });
-  return isArchived || deliver($, card, ARCHIVE_ACTION.message);
 }
 
 async function passAutoFinishToChildren(
