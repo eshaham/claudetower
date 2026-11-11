@@ -57,7 +57,7 @@ export type SessionCard = {
   lastAt: number;
   verdict: Verdict | null;
   isRereading: boolean;
-  isAutoPilot: boolean;
+  isAutoFinish: boolean;
   lane: LaneId;
   canArchive: boolean;
   isFinishing: boolean;
@@ -66,7 +66,7 @@ export type SessionCard = {
 };
 
 export type CardHitMessage = {
-  kind: "open" | "compose" | "group" | "auto-pilot";
+  kind: "open" | "compose" | "group" | "auto-finish";
   id: string;
 };
 
@@ -95,7 +95,7 @@ declare module "claude-code" {
       clickLayersFailedAt: number;
       composing: string;
       draftRows: number;
-      autoPilot: Record<string, number>;
+      autoFinish: Record<string, number>;
     };
   }
 }

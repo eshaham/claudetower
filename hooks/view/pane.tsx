@@ -11,15 +11,15 @@ import {
   readPending,
   readNeedsSetup,
   readCollapsedGroups,
-  readAutoPilot,
+  readAutoFinish,
   areClickLayersHealthy,
-  toggleAutoPilot,
+  toggleAutoFinish,
   toggleCompose,
   toggleGroup,
   sendText,
   startAction,
 } from "../lib/board";
-import { isAutoPilotPaused } from "../lib/auto-pilot";
+import { isAutoFinishPaused } from "../lib/auto-finish";
 import {
   LANES,
   badgeOf,
@@ -50,7 +50,7 @@ import {
   PR_STYLES,
   SWITCH_HEIGHT,
   SWITCH_WIDTH,
-  autoPilotSwitch,
+  autoFinishSwitch,
   chevron,
   pencil,
   prIcon,
@@ -112,7 +112,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     ranking,
     isSettingUp,
     collapsedGroups,
-    autoPilotMarks,
+    autoFinishMarks,
   ] = await Promise.all([
     readCards($),
     readPending($),
@@ -121,14 +121,14 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     loadRanking($),
     readNeedsSetup($),
     readCollapsedGroups($),
-    readAutoPilot($),
+    readAutoFinish($),
   ]);
   const Client =
     "Client" in resolved && (await areClickLayersHealthy($, composingId !== ""))
       ? resolved.Client
       : null;
   const Input = "Input" in resolved ? resolved.Input : null;
-  const isOnAutoPilot = (card: SessionCard) => card.id in autoPilotMarks;
+  const isOnAutoFinish = (card: SessionCard) => card.id in autoFinishMarks;
   const isProcessing = (card: SessionCard) =>
     card.isRunning || (pendingAt[card.id] ?? 0) > card.lastAt;
   const canCompose = (card: SessionCard) =>
@@ -259,14 +259,14 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     const band = card.isRunning ? null : card.band;
     return (
       <Text wrap="wrap">
-        {isOnAutoPilot(card) &&
-          (isAutoPilotPaused(card) ? (
+        {isOnAutoFinish(card) &&
+          (isAutoFinishPaused(card) ? (
             <Text dimColor weight="semibold">
-              Auto-pilot paused, needs you{" "}
+              Auto-finish paused, needs you{" "}
             </Text>
           ) : (
             <Text color="claude" weight="semibold">
-              Auto-pilot{" "}
+              Auto-finish{" "}
             </Text>
           ))}
         {band && (
@@ -386,25 +386,25 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
             columnGap={1}
             alignItems="center"
           >
-            {Svg && Client && <Text dimColor={!isOnAutoPilot(card)}>Auto</Text>}
+            {Svg && Client && <Text dimColor={!isOnAutoFinish(card)}>Auto</Text>}
             {Svg && Client ? (
               <Svg
-                source={autoPilotSwitch(isOnAutoPilot(card))}
+                source={autoFinishSwitch(isOnAutoFinish(card))}
                 alt={
-                  isOnAutoPilot(card)
-                    ? "Auto-pilot is on; turn it off"
-                    : "Auto-pilot is off; turn it on"
+                  isOnAutoFinish(card)
+                    ? "Auto-finish is on; turn it off"
+                    : "Auto-finish is off; turn it on"
                 }
                 width={SWITCH_WIDTH}
                 height={SWITCH_HEIGHT}
               />
             ) : (
               <Button
-                key={`auto-pilot-${card.id}-fallback`}
+                key={`auto-finish-${card.id}-fallback`}
                 plain
-                dimColor={!isOnAutoPilot(card)}
-                label={isOnAutoPilot(card) ? "auto ●" : "auto ○"}
-                onPress={() => toggleAutoPilot($, card.id)}
+                dimColor={!isOnAutoFinish(card)}
+                label={isOnAutoFinish(card) ? "auto ●" : "auto ○"}
+                onPress={() => toggleAutoFinish($, card.id)}
               />
             )}
           </Box>
@@ -417,7 +417,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
               props={{
                 id: card.id,
                 canCompose: canCompose(card),
-                canAutoPilot: !card.isScheduled,
+                canAutoFinish: !card.isScheduled,
               }}
               width="100%"
               height="100%"

@@ -13,12 +13,12 @@ import {
   openPane,
   openSession,
   poll,
-  readAutoPilotMarks,
+  readAutoFinishMarks,
   readCards,
   readNeedsSetup,
-  setAutoPilot,
+  setAutoFinish,
   setPaneOpen,
-  toggleAutoPilot,
+  toggleAutoFinish,
   toggleCompose,
   toggleGroup,
 } from "./lib/board";
@@ -42,7 +42,7 @@ import { renderAbovePrompt } from "./view/above-prompt";
 import { renderPane } from "./view/pane";
 import { renderSetupBand } from "./view/setup";
 
-async function switchAutoPilot($: EngineInterface, args: string) {
+async function switchAutoFinish($: EngineInterface, args: string) {
   const self = (await readCards($)).find(
     (card) => card.cliId === host.selfCliId,
   );
@@ -56,12 +56,12 @@ async function switchAutoPilot($: EngineInterface, args: string) {
       ? true
       : asked === "off"
         ? false
-        : !(self.id in (await readAutoPilotMarks($)));
-  await setAutoPilot($, self.id, isOn);
+        : !(self.id in (await readAutoFinishMarks($)));
+  await setAutoFinish($, self.id, isOn);
   return {
     text: isOn
-      ? "Auto-pilot is on. When this session goes idle with nothing that needs you, claudetower tells it to finish, merge its PR and archive."
-      : "Auto-pilot is off.",
+      ? "Auto-finish is on. When this session goes idle with nothing that needs you, claudetower tells it to finish, merge its PR and archive."
+      : "Auto-finish is off.",
   };
 }
 
@@ -105,7 +105,7 @@ export const register: Register = (on, options) => {
           }),
         () =>
           $.command.register({
-            name: "auto-pilot",
+            name: "auto-finish",
             description:
               "Let this session finish on its own: merge its PR and archive when nothing needs you",
             argumentHint: "[on|off]",
@@ -140,10 +140,10 @@ export const register: Register = (on, options) => {
     return { text: "Session board opened." };
   });
 
-  on("command.run", { command: "auto-pilot" }, ($, e) =>
-    switchAutoPilot($, e.args).catch((error: unknown) => {
-      log($, `could not switch auto-pilot: ${String(error)}`);
-      return { text: "Could not switch auto-pilot." };
+  on("command.run", { command: "auto-finish" }, ($, e) =>
+    switchAutoFinish($, e.args).catch((error: unknown) => {
+      log($, `could not switch auto-finish: ${String(error)}`);
+      return { text: "Could not switch auto-finish." };
     }),
   );
 
@@ -154,8 +154,8 @@ export const register: Register = (on, options) => {
         ? openSession($, message.id)
         : message.kind === "group"
           ? toggleGroup($, message.id)
-          : message.kind === "auto-pilot"
-            ? toggleAutoPilot($, message.id)
+          : message.kind === "auto-finish"
+            ? toggleAutoFinish($, message.id)
             : toggleCompose($, message.id);
     await handled.catch((error: unknown) =>
       log($, `could not handle a ${message.kind} click: ${String(error)}`),

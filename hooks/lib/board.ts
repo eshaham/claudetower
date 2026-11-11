@@ -2,8 +2,8 @@ import { atom, read, update } from "claude-code";
 import type { EngineInterface } from "claude-code";
 
 import type { SessionAction, SessionCard } from "../../types";
-import type { AutoPilotMarks, Nudges } from "./auto-pilot";
-import { AUTO_PILOT_ACTION, autoPilotStepOf, nudgeAfter } from "./auto-pilot";
+import type { AutoFinishMarks, Nudges } from "./auto-finish";
+import { AUTO_FINISH_ACTION, autoFinishStepOf, nudgeAfter } from "./auto-finish";
 import { classify } from "./classify";
 import {
   ARCHIVE_SESSION,
@@ -99,8 +99,8 @@ export const pending = atom(
   { plugin: "claudetower", key: "pending" } as const,
   {},
 );
-export const autoPilot = atom(
-  { plugin: "claudetower", key: "autoPilot" } as const,
+export const autoFinish = atom(
+  { plugin: "claudetower", key: "autoFinish" } as const,
   {},
 );
 
@@ -110,7 +110,7 @@ type Stores = {
   prs: PrStore;
   projects: Record<string, ProjectProfile>;
   ranking: Ranking;
-  autoPilot: AutoPilotMarks;
+  autoFinish: AutoFinishMarks;
 };
 
 type Enriched = Live & { context: VerdictContext; ticket: string };
@@ -127,16 +127,16 @@ let draftText = "";
 let areClickLayersShown = true;
 
 async function readStores($: EngineInterface): Promise<Stores> {
-  const [verdicts, tickets, prs, projects, ranking, autoPilot] =
+  const [verdicts, tickets, prs, projects, ranking, autoFinish] =
     await Promise.all([
       readVerdicts($),
       readTickets($),
       readPrs($),
       readProjects($),
       loadRanking($),
-      readAutoPilotMarks($),
+      readAutoFinishMarks($),
     ]);
-  return { verdicts, tickets, prs, projects, ranking, autoPilot };
+  return { verdicts, tickets, prs, projects, ranking, autoFinish };
 }
 
 const enrich = (live: Live[], stores: Stores): Enriched[] => {
@@ -157,7 +157,7 @@ const enrich = (live: Live[], stores: Stores): Enriched[] => {
         ticket: ticket && info ? { ...info, id: ticket } : null,
         ranking: stores.ranking,
         rankingFingerprint,
-        isAutoPilot: one.s.sessionId in stores.autoPilot,
+        isAutoFinish: one.s.sessionId in stores.autoFinish,
       },
     };
   });
@@ -194,7 +194,7 @@ const cardOf = (one: Enriched, now: number, stores: Stores): SessionCard => {
       lastAt: end.lastAt,
       verdict: current ?? stored?.verdict ?? null,
       isRereading: end.isStopped && current === null,
-      isAutoPilot: one.context.isAutoPilot,
+      isAutoFinish: one.context.isAutoFinish,
     },
     stores.ranking,
   );
@@ -318,7 +318,7 @@ async function loadAsLeader($: EngineInterface) {
     ),
   );
   inBackground($, "prs", () => refreshPrs($, live));
-  inBackground($, "auto-pilot", () => driveAutoPilot($, built));
+  inBackground($, "auto-finish", () => driveAutoFinish($, built));
   inBackground($, "verdicts", async () => {
     const fresh = await readNewVerdicts($, enriched, stores.verdicts);
     if (Object.keys(fresh).length === 0) return;
@@ -496,9 +496,9 @@ export async function archiveSession($: EngineInterface, card: SessionCard) {
   if (!isArchived) startAction($, card, ARCHIVE_ACTION);
 }
 
-export async function readAutoPilotMarks($: EngineInterface) {
-  return ((await $.store.get(instanceKey(STORE_KEYS.autoPilot))) ??
-    {}) as AutoPilotMarks;
+export async function readAutoFinishMarks($: EngineInterface) {
+  return ((await $.store.get(instanceKey(STORE_KEYS.autoFinish))) ??
+    {}) as AutoFinishMarks;
 }
 
 async function readNudges($: EngineInterface) {
@@ -508,53 +508,53 @@ async function readNudges($: EngineInterface) {
 const withoutIds = <T>(record: Record<string, T>, ids: Set<string>) =>
   Object.fromEntries(Object.entries(record).filter(([id]) => !ids.has(id)));
 
-async function forgetAutoPilot($: EngineInterface, ids: Set<string>) {
+async function forgetAutoFinish($: EngineInterface, ids: Set<string>) {
   const [marks, nudges] = await Promise.all([
-    readAutoPilotMarks($),
+    readAutoFinishMarks($),
     readNudges($),
   ]);
   const kept = withoutIds(marks, ids);
-  await $.store.set(instanceKey(STORE_KEYS.autoPilot), kept);
+  await $.store.set(instanceKey(STORE_KEYS.autoFinish), kept);
   await $.store.set(instanceKey(STORE_KEYS.nudges), withoutIds(nudges, ids));
-  await update($, autoPilot, () => kept);
+  await update($, autoFinish, () => kept);
 }
 
-export async function setAutoPilot(
+export async function setAutoFinish(
   $: EngineInterface,
   id: string,
   isOn: boolean,
 ) {
-  await forgetAutoPilot($, new Set([id]));
+  await forgetAutoFinish($, new Set([id]));
   if (isOn) {
-    const marks = { ...(await readAutoPilotMarks($)), [id]: Date.now() };
-    await $.store.set(instanceKey(STORE_KEYS.autoPilot), marks);
-    await update($, autoPilot, () => marks);
+    const marks = { ...(await readAutoFinishMarks($)), [id]: Date.now() };
+    await $.store.set(instanceKey(STORE_KEYS.autoFinish), marks);
+    await update($, autoFinish, () => marks);
   }
   void load($).catch((error: unknown) =>
-    log($, `could not refresh after auto-pilot changed: ${String(error)}`),
+    log($, `could not refresh after auto-finish changed: ${String(error)}`),
   );
 }
 
-export async function toggleAutoPilot($: EngineInterface, id: string) {
-  await setAutoPilot($, id, !(id in (await readAutoPilotMarks($))));
+export async function toggleAutoFinish($: EngineInterface, id: string) {
+  await setAutoFinish($, id, !(id in (await readAutoFinishMarks($))));
 }
 
-export function readAutoPilot($: EngineInterface) {
-  return read($, autoPilot);
+export function readAutoFinish($: EngineInterface) {
+  return read($, autoFinish);
 }
 
-async function followAutoPilot($: EngineInterface) {
-  const marks = await readAutoPilotMarks($);
-  await update($, autoPilot, () => marks);
+async function followAutoFinish($: EngineInterface) {
+  const marks = await readAutoFinishMarks($);
+  await update($, autoFinish, () => marks);
 }
 
-async function takeAutoPilotStep(
+async function takeAutoFinishStep(
   $: EngineInterface,
   card: SessionCard,
   step: "archive" | "nudge",
 ) {
-  log($, `auto-pilot: ${step} "${card.title}"`);
-  if (step === "nudge") return deliver($, card, AUTO_PILOT_ACTION.message);
+  log($, `auto-finish: ${step} "${card.title}"`);
+  if (step === "nudge") return deliver($, card, AUTO_FINISH_ACTION.message);
   const isArchived = await archiveDirectly($, card).catch((error: unknown) => {
     log($, `could not archive "${card.title}": ${String(error)}`);
     return false;
@@ -562,32 +562,32 @@ async function takeAutoPilotStep(
   return isArchived || deliver($, card, ARCHIVE_ACTION.message);
 }
 
-async function driveAutoPilot($: EngineInterface, built: SessionCard[]) {
-  const marks = await readAutoPilotMarks($);
+async function driveAutoFinish($: EngineInterface, built: SessionCard[]) {
+  const marks = await readAutoFinishMarks($);
   const marked = Object.keys(marks);
   if (marked.length === 0) return;
   const shown = new Set(built.map((card) => card.id));
   const gone = new Set(marked.filter((id) => !shown.has(id)));
-  if (built.length > 0 && gone.size > 0) await forgetAutoPilot($, gone);
+  if (built.length > 0 && gone.size > 0) await forgetAutoFinish($, gone);
   const nudges = await readNudges($);
   const now = Date.now();
   const due = built.flatMap((card) => {
-    const step = autoPilotStepOf(card, nudges[card.id], now);
+    const step = autoFinishStepOf(card, nudges[card.id], now);
     return step === "wait" ? [] : [{ card, step }];
   });
   if (due.length === 0) return;
   const taken = await Promise.all(
     due.map(async ({ card, step }) => {
-      const isDelivered = await takeAutoPilotStep($, card, step).catch(
+      const isDelivered = await takeAutoFinishStep($, card, step).catch(
         (error: unknown) => {
           log(
             $,
-            `auto-pilot could not reach "${card.title}": ${String(error)}`,
+            `auto-finish could not reach "${card.title}": ${String(error)}`,
           );
           return false;
         },
       );
-      if (!isDelivered) log($, `auto-pilot: "${card.title}" did not pick up`);
+      if (!isDelivered) log($, `auto-finish: "${card.title}" did not pick up`);
       return [
         card.id,
         nudgeAfter(nudges[card.id], card, step, isDelivered, now),
@@ -643,7 +643,7 @@ export async function followOtherSessions($: EngineInterface) {
     if (!wantsOpen && isUp) await $.ui.close({ id: PANE });
   }
   await followCollapsedGroups($);
-  await followAutoPilot($);
+  await followAutoFinish($);
   const isShown = (await $.ui.panes()).some((pane) => pane.id === PANE);
   await update($, isOpen, () => isShown);
 }

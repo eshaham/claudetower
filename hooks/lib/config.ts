@@ -52,7 +52,7 @@ export const STORE_KEYS = {
   projects: "projects-v1",
   isOpen: "isOpen",
   collapsedGroups: "collapsed-groups",
-  autoPilot: "auto-pilot",
+  autoFinish: "auto-pilot",
   nudges: "auto-pilot-nudges",
 } as const;
 

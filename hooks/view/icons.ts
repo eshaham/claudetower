@@ -48,5 +48,5 @@ export const SWITCH_HEIGHT = 16;
 
 const ACCENT = "#d97757";
 
-export const autoPilotSwitch = (isOn: boolean) =>
+export const autoFinishSwitch = (isOn: boolean) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 16" width="${SWITCH_WIDTH}" height="${SWITCH_HEIGHT}"><rect x="1" y="1" width="26" height="14" rx="7" fill="${isOn ? ACCENT : "none"}" stroke="${isOn ? ACCENT : CHEVRON_COLOR}" stroke-width="1.5"/><circle cx="${isOn ? 20 : 8}" cy="8" r="4.5" fill="${isOn ? "#ffffff" : CHEVRON_COLOR}"/></svg>`;
