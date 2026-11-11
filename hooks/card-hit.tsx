@@ -6,11 +6,13 @@ type Props = {
   id: string;
   canToggle: boolean;
   canCompose: boolean;
+  canAutoPilot?: boolean;
   isGroup?: boolean;
 };
 
 const TOGGLE_COLUMNS = 3;
 const COMPOSE_COLUMNS = 4;
+const AUTO_PILOT_COLUMNS = 5;
 const CORNER_ROWS = 2;
 
 const CardHit: ClientModule<Props, Props> = (props, surface) => {
@@ -35,7 +37,13 @@ const CardHit: ClientModule<Props, Props> = (props, surface) => {
               current.canCompose &&
               fromRight <= TOGGLE_COLUMNS + COMPOSE_COLUMNS
             ? "compose"
-            : "open";
+            : inCorner &&
+                current.canAutoPilot &&
+                fromRight > TOGGLE_COLUMNS + COMPOSE_COLUMNS &&
+                fromRight <=
+                  TOGGLE_COLUMNS + COMPOSE_COLUMNS + AUTO_PILOT_COLUMNS
+              ? "auto-pilot"
+              : "open";
       const message: CardHitMessage = { kind, id: current.id };
       surface.post(message);
     });
@@ -44,6 +52,7 @@ const CardHit: ClientModule<Props, Props> = (props, surface) => {
     previous?.id !== props.id ||
     previous.canToggle !== props.canToggle ||
     previous.canCompose !== props.canCompose ||
+    previous.canAutoPilot !== props.canAutoPilot ||
     previous.isGroup !== props.isGroup
   )
     surface.setState(props);

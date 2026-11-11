@@ -69,7 +69,7 @@ export type SessionCard = {
 };
 
 export type CardHitMessage = {
-  kind: "open" | "toggle" | "compose" | "group";
+  kind: "open" | "toggle" | "compose" | "group" | "auto-pilot";
   id: string;
 };
 

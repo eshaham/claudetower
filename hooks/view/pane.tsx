@@ -50,6 +50,9 @@ import {
   PENCIL_SIZE,
   PR_ICON_SIZE,
   PR_STYLES,
+  SWITCH_HEIGHT,
+  SWITCH_WIDTH,
+  autoPilotSwitch,
   chevron,
   pencil,
   prIcon,
@@ -354,7 +357,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
       paddingX={1}
     >
       <Box key={`body-${card.id}`} position="relative" flexDirection="column">
-        <Box paddingRight={7}>
+        <Box paddingRight={12}>
           {Client ? (
             <Text weight="semibold" wrap="wrap">
               {card.title}
@@ -399,6 +402,30 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
             )}
           </Box>
         )}
+        {!card.isScheduled && (
+          <Box position="absolute" top={0} right={7}>
+            {Svg && Client ? (
+              <Svg
+                source={autoPilotSwitch(isOnAutoPilot(card))}
+                alt={
+                  isOnAutoPilot(card)
+                    ? "Auto-pilot is on; turn it off"
+                    : "Auto-pilot is off; turn it on"
+                }
+                width={SWITCH_WIDTH}
+                height={SWITCH_HEIGHT}
+              />
+            ) : (
+              <Button
+                key={`auto-pilot-${card.id}-fallback`}
+                plain
+                dimColor={!isOnAutoPilot(card)}
+                label={isOnAutoPilot(card) ? "auto ●" : "auto ○"}
+                onPress={() => toggleAutoPilot($, card.id)}
+              />
+            )}
+          </Box>
+        )}
         {hasPreview(card) && (
           <Box position="absolute" top={0} right={0}>
             {Svg && Client ? (
@@ -428,6 +455,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
                 id: card.id,
                 canToggle: hasPreview(card),
                 canCompose: canCompose(card),
+                canAutoPilot: !card.isScheduled,
               }}
               width="100%"
               height="100%"
@@ -452,22 +480,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
         </Box>
       )}
       {previewedId === card.id && (
-        <Box
-          marginTop={1}
-          flexDirection="row"
-          justifyContent="center"
-          columnGap={3}
-        >
-          {!card.isScheduled && (
-            <Button
-              key={`auto-pilot-${card.id}`}
-              plain
-              dimColor={!isOnAutoPilot(card)}
-              hover={{ dimColor: false, underline: true }}
-              label={isOnAutoPilot(card) ? "Auto-pilot: on" : "Auto-pilot: off"}
-              onPress={() => toggleAutoPilot($, card.id)}
-            />
-          )}
+        <Box marginTop={1} flexDirection="row" justifyContent="center">
           <Button
             key={`collapse-${card.id}`}
             plain

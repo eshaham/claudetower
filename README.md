@@ -25,7 +25,7 @@ Clicking a card opens that session.
 
 Put a session on auto-pilot and it finishes on its own: it completes the work, opens its PR, and turns on the app's Auto-fix, GitHub auto-merge and archive-on-merge for it, reaching out to you only when it needs something.
 
-Turn it on from a card (expand it and click **Auto-pilot: off**), or type `/auto-pilot` in the session itself (`/auto-pilot on`, `/auto-pilot off`, or bare to toggle). The card then shows **Auto-pilot**.
+Turn it on with the switch next to a card's title, or type `/auto-pilot` in the session itself (`/auto-pilot on`, `/auto-pilot off`, or bare to toggle). The card then shows **Auto-pilot**.
 
 Each time an auto-pilot session stops, its reading also says whether it could finish alone: everything left is work it can do with a standing go-ahead to commit, push, merge its own PR and archive, such as fixing checks or waiting for them. If so, the board moves it to **In flight** and sends it a message that hands it the go-ahead and points it to the `claudetower:auto-pilot` skill, which comes with the plugin. If it needs a real decision, a credential, a human reviewer, or a step riskier than merging (a deploy, a migration, an infrastructure apply), it stays in its usual lane until you answer. Once it is finished, the board archives it.
 

@@ -18,6 +18,7 @@ import {
   readNeedsSetup,
   setAutoPilot,
   setPaneOpen,
+  toggleAutoPilot,
   toggleCompose,
   toggleGroup,
   togglePreview,
@@ -145,7 +146,9 @@ export const register: Register = (on, options) => {
           ? togglePreview($, message.id)
           : message.kind === "group"
             ? toggleGroup($, message.id)
-            : toggleCompose($, message.id);
+            : message.kind === "auto-pilot"
+              ? toggleAutoPilot($, message.id)
+              : toggleCompose($, message.id);
     await handled.catch((error: unknown) =>
       log($, `could not handle a ${message.kind} click: ${String(error)}`),
     );

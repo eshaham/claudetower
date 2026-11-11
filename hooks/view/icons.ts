@@ -42,4 +42,12 @@ export const prIcon = (state: PrState) =>
 export const PENCIL_SIZE = 18;
 
 export const pencil = (isActive: boolean) =>
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${PENCIL_SIZE}" height="${PENCIL_SIZE}"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z M13.5 6.5l4 4" fill="none" stroke="${isActive ? "#d97757" : CHEVRON_COLOR}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${PENCIL_SIZE}" height="${PENCIL_SIZE}"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z M13.5 6.5l4 4" fill="none" stroke="${isActive ? ACCENT : CHEVRON_COLOR}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+export const SWITCH_WIDTH = 28;
+export const SWITCH_HEIGHT = 16;
+
+const ACCENT = "#d97757";
+
+export const autoPilotSwitch = (isOn: boolean) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 16" width="${SWITCH_WIDTH}" height="${SWITCH_HEIGHT}"><rect x="1" y="1" width="26" height="14" rx="7" fill="${isOn ? ACCENT : "none"}" stroke="${isOn ? ACCENT : CHEVRON_COLOR}" stroke-width="1.5"/><circle cx="${isOn ? 20 : 8}" cy="8" r="4.5" fill="${isOn ? "#ffffff" : CHEVRON_COLOR}"/></svg>`;
