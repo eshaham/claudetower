@@ -10,7 +10,7 @@ type Props = {
 };
 
 const COMPOSE_COLUMNS = 4;
-const AUTO_FINISH_COLUMNS = 9;
+const AUTO_FINISH_COLUMNS = 11;
 const CORNER_ROWS = 2;
 
 const zoneOf = (

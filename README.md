@@ -25,11 +25,11 @@ Clicking a card opens that session.
 
 Put a session on auto-finish and it finishes on its own: it completes the work, opens its PR, and turns on the app's Auto-fix, GitHub auto-merge and archive-on-merge for it, reaching out to you only when it needs something.
 
-Turn it on with the switch next to a card's title, or type `/auto-finish` in the session itself (`/auto-finish on`, `/auto-finish off`, or bare to toggle). The card then shows **Auto-finish**.
+Turn it on with the switch next to a card's title, or type `/auto-finish` in the session itself (`/auto-finish on`, `/auto-finish off`, or bare to toggle). A dot next to **Auto** then shows its state: green while it works toward a merge, red while it waits for you.
 
 As soon as you switch it on, the board messages the session, which says in the chat that auto-finish is on and asks you again, with Claude's question prompt, for anything it still needs from you. After that, each time an auto-finish session stops, its reading also says whether it could finish alone: everything left is work it can do with a standing go-ahead to commit, push, merge its own PR and archive, such as fixing checks or waiting for them. If so, the board moves it to **In flight** and sends it a message that hands it the go-ahead and points it to the `claudetower:auto-finish` skill, which comes with the plugin. If it needs a real decision, a credential, a human reviewer, or a step riskier than merging (a deploy, a migration, an infrastructure apply), it stays in its usual lane until you answer. Once it is finished, the board archives it.
 
-A session on auto-finish passes it on to the sessions it started, and it is archived only after all of them are. Until then its card reads **Auto-finish waiting on N started sessions**.
+A session on auto-finish passes it on to the sessions it started, and it is archived only after all of them are.
 
 The message counts as your consent to merge that session's PR. A session gets at most one message per turn and 12 in all, and none while it only waits on checks after its first, since Auto-fix wakes it from there; a message nobody picks up (the session isn't running) is tried again after 10 minutes.
 
