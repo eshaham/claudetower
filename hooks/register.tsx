@@ -23,6 +23,7 @@ import {
   takeRelayedMessage,
   toggleAutoFinish,
   toggleCompose,
+  turnAutoFinishOff,
   toggleGroup,
 } from "./lib/board";
 import {
@@ -66,11 +67,12 @@ async function switchAutoFinish($: EngineInterface, args: string) {
             self.id,
             self.isSetUpInApp === true,
           );
-  await setAutoFinish($, self.id, isOn);
+  if (isOn) await setAutoFinish($, self.id, true);
+  else await turnAutoFinishOff($, self.id);
   return {
     text: isOn
       ? "Auto-finish is on. claudetower will tell this session to finish, merge its PR and archive, and it will ask you for anything it needs."
-      : "Auto-finish is off.",
+      : "Auto-finish is off. claudetower will ask this session to turn off auto-merge and archive-on-close for its PR.",
   };
 }
 

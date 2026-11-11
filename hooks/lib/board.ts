@@ -5,6 +5,7 @@ import type { SessionAction, SessionCard } from "../../types";
 import type { AutoFinishMarks, Nudge, Nudges } from "./auto-finish";
 import {
   AUTO_FINISH_ACTION,
+  AUTO_FINISH_OFF_MESSAGE,
   autoFinishStepOf,
   isAutoFinishOn,
   nudgeAfter,
@@ -627,6 +628,25 @@ async function kickOff($: EngineInterface, card: SessionCard, hold: Nudge) {
   });
 }
 
+async function windDown($: EngineInterface, card: SessionCard) {
+  const isDelivered =
+    (await deliver($, card, AUTO_FINISH_OFF_MESSAGE)) ||
+    (await sendThroughApp($, card, AUTO_FINISH_OFF_MESSAGE));
+  if (!isDelivered)
+    $.ui.toast(
+      `Could not reach "${card.title}" to turn off its auto-merge and archive-on-close`,
+    );
+}
+
+export async function turnAutoFinishOff($: EngineInterface, id: string) {
+  const card = (await readCards($)).find((one) => one.id === id);
+  const hasStarted = (await readNudges($))[id]?.hasStarted === true;
+  await setAutoFinish($, id, false);
+  if (!card || card.isScheduled) return;
+  if (!hasStarted && !card.prs.some((pr) => isOpenPr(pr.state))) return;
+  inBackground($, `auto-finish wind-down ${id}`, () => windDown($, card));
+}
+
 export async function toggleAutoFinish($: EngineInterface, id: string) {
   const card = (await readCards($)).find((one) => one.id === id);
   const isOn = !isAutoFinishOn(
@@ -634,8 +654,11 @@ export async function toggleAutoFinish($: EngineInterface, id: string) {
     id,
     card?.isSetUpInApp === true,
   );
+  if (!isOn) {
+    await turnAutoFinishOff($, id);
+    return;
+  }
   if (
-    !isOn ||
     !card ||
     card.cliId === host.selfCliId ||
     card.isScheduled ||

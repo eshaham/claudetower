@@ -26,6 +26,9 @@ export const AUTO_FINISH_ACTION: SessionAction = {
     "Auto-finish (claudetower): take this session the rest of the way on your own with the claudetower:auto-finish skill. Start by telling me in one line that auto-finish is on and what is left. If you need my answer on anything that changes what you do next, ask me again with the AskUserQuestion tool, even if you asked before. Don't ask me whether to keep waiting: if all that is left is CI or a review that is already requested, turn on auto-merge if it isn't on yet, say in one line what it waits on, and end the turn. Otherwise finish and verify the work, open or update the PR, then turn on Auto-fix, auto-merge and archive-on-merge for it. If the repository doesn't allow auto-merge, merge it yourself once its checks pass and it has the approvals it needs. I consent to merging this session's PR once its checks pass. Stop and ask me only for what you cannot decide or do yourself.",
 };
 
+export const AUTO_FINISH_OFF_MESSAGE =
+  "claudetower: I switched auto-finish off for this session. Turn off GitHub auto-merge (mcp__ccd_pr__set_auto_merge with enabled: false) and archive-on-close (mcp__ccd_pr__set_monitor with auto_archive_on_close: false) for this session's open PR, and leave Auto-fix as it is. From now on, don't merge the PR or archive this session unless I ask. Tell me in one line when that's done.";
+
 export const isMarkedOn = (marks: AutoFinishMarks, id: string) =>
   (marks[id] ?? 0) > 0;
 
