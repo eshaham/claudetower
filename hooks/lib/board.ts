@@ -3,10 +3,15 @@ import type { EngineInterface } from "claude-code";
 
 import type { SessionAction, SessionCard } from "../../types";
 import type { AutoFinishMarks, Nudges } from "./auto-finish";
-import { AUTO_FINISH_ACTION, autoFinishStepOf, nudgeAfter } from "./auto-finish";
+import {
+  AUTO_FINISH_ACTION,
+  autoFinishStepOf,
+  nudgeAfter,
+} from "./auto-finish";
 import { classify } from "./classify";
 import {
   ARCHIVE_SESSION,
+  SEND_TO_SESSION,
   ANSWER_CHECK_MS,
   ANSWER_PICKUP_MS,
   inboxDir,
@@ -561,13 +566,45 @@ async function followAutoFinish($: EngineInterface) {
   await update($, autoFinish, () => marks);
 }
 
+async function sendThroughApp(
+  $: EngineInterface,
+  card: SessionCard,
+  message: string,
+) {
+  if (card.cliId === host.selfCliId) return false;
+  const input = { session_id: card.id, message };
+  const { decision } = await $.tool.check({ tool: SEND_TO_SESSION, input });
+  if (decision !== "allow") {
+    log(
+      $,
+      `auto-finish: not allowed to message "${card.title}" through the app`,
+    );
+    return false;
+  }
+  const sent = await $.tool.call({ tool: SEND_TO_SESSION, ...input });
+  const isSent =
+    sent.deny === undefined &&
+    !sent.isError &&
+    /delivery: (delivered|queued)/.test(sent.text ?? "");
+  if (!isSent)
+    log(
+      $,
+      `could not message "${card.title}" through the app: ${sent.deny ?? sent.text ?? "no answer"}`,
+    );
+  return isSent;
+}
+
 async function takeAutoFinishStep(
   $: EngineInterface,
   card: SessionCard,
   step: "archive" | "nudge",
 ) {
   log($, `auto-finish: ${step} "${card.title}"`);
-  if (step === "nudge") return deliver($, card, AUTO_FINISH_ACTION.message);
+  if (step === "nudge")
+    return (
+      (await deliver($, card, AUTO_FINISH_ACTION.message)) ||
+      sendThroughApp($, card, AUTO_FINISH_ACTION.message)
+    );
   const isArchived = await archiveDirectly($, card).catch((error: unknown) => {
     log($, `could not archive "${card.title}": ${String(error)}`);
     return false;
