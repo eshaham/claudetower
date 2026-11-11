@@ -2,6 +2,8 @@ import { atom, read, update } from "claude-code";
 import type { EngineInterface } from "claude-code";
 
 import type { SessionAction, SessionCard } from "../../types";
+import type { AutoPilotMarks, Nudges } from "./auto-pilot";
+import { AUTO_PILOT_ACTION, autoPilotStepOf, nudgeAfter } from "./auto-pilot";
 import { classify } from "./classify";
 import {
   ARCHIVE_SESSION,
@@ -99,6 +101,10 @@ export const pending = atom(
   { plugin: "claudetower", key: "pending" } as const,
   {},
 );
+export const autoPilot = atom(
+  { plugin: "claudetower", key: "autoPilot" } as const,
+  {},
+);
 
 type Stores = {
   verdicts: VerdictStore;
@@ -106,6 +112,7 @@ type Stores = {
   prs: PrStore;
   projects: Record<string, ProjectProfile>;
   ranking: Ranking;
+  autoPilot: AutoPilotMarks;
 };
 
 type Enriched = Live & { context: VerdictContext; ticket: string };
@@ -127,14 +134,16 @@ const fromParagraphStart = (text: string, limit: number) => {
 };
 
 async function readStores($: EngineInterface): Promise<Stores> {
-  const [verdicts, tickets, prs, projects, ranking] = await Promise.all([
-    readVerdicts($),
-    readTickets($),
-    readPrs($),
-    readProjects($),
-    loadRanking($),
-  ]);
-  return { verdicts, tickets, prs, projects, ranking };
+  const [verdicts, tickets, prs, projects, ranking, autoPilot] =
+    await Promise.all([
+      readVerdicts($),
+      readTickets($),
+      readPrs($),
+      readProjects($),
+      loadRanking($),
+      readAutoPilotMarks($),
+    ]);
+  return { verdicts, tickets, prs, projects, ranking, autoPilot };
 }
 
 const enrich = (live: Live[], stores: Stores): Enriched[] => {
@@ -155,6 +164,7 @@ const enrich = (live: Live[], stores: Stores): Enriched[] => {
         ticket: ticket && info ? { ...info, id: ticket } : null,
         ranking: stores.ranking,
         rankingFingerprint,
+        isAutoPilot: one.s.sessionId in stores.autoPilot,
       },
     };
   });
@@ -194,6 +204,7 @@ const cardOf = (one: Enriched, now: number, stores: Stores): SessionCard => {
       lastAt: end.lastAt,
       verdict: current ?? stored?.verdict ?? null,
       isRereading: end.isStopped && current === null,
+      isAutoPilot: one.context.isAutoPilot,
     },
     stores.ranking,
   );
@@ -317,6 +328,7 @@ async function loadAsLeader($: EngineInterface) {
     ),
   );
   inBackground($, "prs", () => refreshPrs($, live));
+  inBackground($, "auto-pilot", () => driveAutoPilot($, built));
   inBackground($, "verdicts", async () => {
     const fresh = await readNewVerdicts($, enriched, stores.verdicts);
     if (Object.keys(fresh).length === 0) return;
@@ -494,6 +506,110 @@ export async function archiveSession($: EngineInterface, card: SessionCard) {
   if (!isArchived) startAction($, card, ARCHIVE_ACTION);
 }
 
+export async function readAutoPilotMarks($: EngineInterface) {
+  return ((await $.store.get(instanceKey(STORE_KEYS.autoPilot))) ??
+    {}) as AutoPilotMarks;
+}
+
+async function readNudges($: EngineInterface) {
+  return ((await $.store.get(instanceKey(STORE_KEYS.nudges))) ?? {}) as Nudges;
+}
+
+const withoutIds = <T>(record: Record<string, T>, ids: Set<string>) =>
+  Object.fromEntries(Object.entries(record).filter(([id]) => !ids.has(id)));
+
+async function forgetAutoPilot($: EngineInterface, ids: Set<string>) {
+  const [marks, nudges] = await Promise.all([
+    readAutoPilotMarks($),
+    readNudges($),
+  ]);
+  const kept = withoutIds(marks, ids);
+  await $.store.set(instanceKey(STORE_KEYS.autoPilot), kept);
+  await $.store.set(instanceKey(STORE_KEYS.nudges), withoutIds(nudges, ids));
+  await update($, autoPilot, () => kept);
+}
+
+export async function setAutoPilot(
+  $: EngineInterface,
+  id: string,
+  isOn: boolean,
+) {
+  await forgetAutoPilot($, new Set([id]));
+  if (isOn) {
+    const marks = { ...(await readAutoPilotMarks($)), [id]: Date.now() };
+    await $.store.set(instanceKey(STORE_KEYS.autoPilot), marks);
+    await update($, autoPilot, () => marks);
+  }
+  void load($).catch((error: unknown) =>
+    log($, `could not refresh after auto-pilot changed: ${String(error)}`),
+  );
+}
+
+export async function toggleAutoPilot($: EngineInterface, id: string) {
+  await setAutoPilot($, id, !(id in (await readAutoPilotMarks($))));
+}
+
+export function readAutoPilot($: EngineInterface) {
+  return read($, autoPilot);
+}
+
+async function followAutoPilot($: EngineInterface) {
+  const marks = await readAutoPilotMarks($);
+  await update($, autoPilot, () => marks);
+}
+
+async function takeAutoPilotStep(
+  $: EngineInterface,
+  card: SessionCard,
+  step: "archive" | "nudge",
+) {
+  log($, `auto-pilot: ${step} "${card.title}"`);
+  if (step === "nudge") return deliver($, card, AUTO_PILOT_ACTION.message);
+  const isArchived = await archiveDirectly($, card).catch((error: unknown) => {
+    log($, `could not archive "${card.title}": ${String(error)}`);
+    return false;
+  });
+  return isArchived || deliver($, card, ARCHIVE_ACTION.message);
+}
+
+async function driveAutoPilot($: EngineInterface, built: SessionCard[]) {
+  const marks = await readAutoPilotMarks($);
+  const marked = Object.keys(marks);
+  if (marked.length === 0) return;
+  const shown = new Set(built.map((card) => card.id));
+  const gone = new Set(marked.filter((id) => !shown.has(id)));
+  if (built.length > 0 && gone.size > 0) await forgetAutoPilot($, gone);
+  const nudges = await readNudges($);
+  const now = Date.now();
+  const due = built.flatMap((card) => {
+    const step = autoPilotStepOf(card, nudges[card.id], now);
+    return step === "wait" ? [] : [{ card, step }];
+  });
+  if (due.length === 0) return;
+  const taken = await Promise.all(
+    due.map(async ({ card, step }) => {
+      const isDelivered = await takeAutoPilotStep($, card, step).catch(
+        (error: unknown) => {
+          log(
+            $,
+            `auto-pilot could not reach "${card.title}": ${String(error)}`,
+          );
+          return false;
+        },
+      );
+      if (!isDelivered) log($, `auto-pilot: "${card.title}" did not pick up`);
+      return [
+        card.id,
+        nudgeAfter(nudges[card.id], card, step, isDelivered, now),
+      ] as const;
+    }),
+  );
+  await $.store.set(instanceKey(STORE_KEYS.nudges), {
+    ...(await readNudges($)),
+    ...Object.fromEntries(taken),
+  });
+}
+
 export function togglePreview($: EngineInterface, id: string) {
   return update($, previewed, (current) => (current === id ? "" : id));
 }
@@ -541,6 +657,7 @@ export async function followOtherSessions($: EngineInterface) {
     if (!wantsOpen && isUp) await $.ui.close({ id: PANE });
   }
   await followCollapsedGroups($);
+  await followAutoPilot($);
   const isShown = (await $.ui.panes()).some((pane) => pane.id === PANE);
   await update($, isOpen, () => isShown);
 }
@@ -586,26 +703,29 @@ function clearPending($: EngineInterface, id: string) {
   );
 }
 
+async function deliver($: EngineInterface, card: SessionCard, text: string) {
+  if (card.cliId === host.selfCliId) {
+    await $.prompt.submit({ text, asUser: true });
+    return true;
+  }
+  if (!card.cliId) return false;
+  const path = inboxPathOf(card.cliId);
+  await $.fs.write(path, JSON.stringify({ text, at: Date.now() }));
+  for (let waited = 0; waited < ANSWER_PICKUP_MS; waited += ANSWER_CHECK_MS) {
+    await $.clock.sleep(ANSWER_CHECK_MS);
+    if (!(await $.fs.exists(path))) return true;
+  }
+  await removeFile($, path);
+  return false;
+}
+
 async function sendAction(
   $: EngineInterface,
   card: SessionCard,
   action: SessionAction,
 ) {
   await markPending($, card.id);
-  if (card.cliId === host.selfCliId) {
-    await $.prompt.submit({ text: action.message, asUser: true });
-    return;
-  }
-  const path = inboxPathOf(card.cliId);
-  await $.fs.write(
-    path,
-    JSON.stringify({ text: action.message, at: Date.now() }),
-  );
-  for (let waited = 0; waited < ANSWER_PICKUP_MS; waited += ANSWER_CHECK_MS) {
-    await $.clock.sleep(ANSWER_CHECK_MS);
-    if (!(await $.fs.exists(path))) return;
-  }
-  await removeFile($, path);
+  if (await deliver($, card, action.message)) return;
   await clearPending($, card.id);
   $.ui.toast(`"${card.title}" isn't running, so it opened instead`);
   await openSession($, card.id);

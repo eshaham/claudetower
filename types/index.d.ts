@@ -11,6 +11,7 @@ export type Verdict = {
   labels: string[];
   isLastMile: boolean;
   isFinished: boolean;
+  canFinishAlone: boolean;
 };
 
 export type BandBadge = { name: string; color?: string };
@@ -59,6 +60,7 @@ export type SessionCard = {
   lastAt: number;
   verdict: Verdict | null;
   isRereading: boolean;
+  isAutoPilot: boolean;
   lane: LaneId;
   canArchive: boolean;
   isFinishing: boolean;
@@ -97,6 +99,7 @@ declare module "claude-code" {
       clickLayersFailedAt: number;
       composing: string;
       draft: string;
+      autoPilot: Record<string, number>;
     };
   }
 }

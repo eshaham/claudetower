@@ -1,0 +1,66 @@
+import type { SessionAction, SessionCard } from "../../types";
+import { MINUTE_MS } from "./config";
+
+export type AutoPilotMarks = Record<string, number>;
+
+export type Nudge = {
+  forTurn: number;
+  at: number;
+  count: number;
+  isDelivered: boolean;
+};
+
+export type Nudges = Record<string, Nudge>;
+
+export type AutoPilotStep = "archive" | "nudge" | "wait";
+
+export const MAX_NUDGES = 12;
+export const NUDGE_RETRY_MS = 10 * MINUTE_MS;
+
+export const AUTO_PILOT_ACTION: SessionAction = {
+  label: "Auto-pilot",
+  message:
+    "Auto-pilot (claudetower): take this session the rest of the way on your own with the claudetower:auto-pilot skill: finish and verify the work, commit, push, open or update the PR, get its checks green, merge it, then archive this session. I consent to merging this session's PR once its checks pass. Stop and ask me only for what you cannot decide or do yourself.",
+};
+
+export const isAutoPiloting = (
+  card: Pick<SessionCard, "isAutoPilot" | "verdict">,
+) => card.isAutoPilot && card.verdict?.canFinishAlone === true;
+
+const isHandled = (nudge: Nudge | undefined, card: SessionCard, now: number) =>
+  nudge?.forTurn === card.lastAt &&
+  (nudge.isDelivered || now - nudge.at < NUDGE_RETRY_MS);
+
+export const autoPilotStepOf = (
+  card: SessionCard,
+  nudge: Nudge | undefined,
+  now: number,
+): AutoPilotStep => {
+  if (
+    !card.isAutoPilot ||
+    card.isRunning ||
+    card.isScheduled ||
+    card.isRereading ||
+    card.verdict === null ||
+    isHandled(nudge, card, now)
+  )
+    return "wait";
+  if (card.canArchive) return "archive";
+  if (!card.verdict.canFinishAlone) return "wait";
+  return (nudge?.count ?? 0) >= MAX_NUDGES ? "wait" : "nudge";
+};
+
+export const nudgeAfter = (
+  previous: Nudge | undefined,
+  card: SessionCard,
+  step: AutoPilotStep,
+  isDelivered: boolean,
+  now: number,
+): Nudge => ({
+  forTurn: card.lastAt,
+  at: now,
+  count:
+    (previous?.count ?? 0) +
+    (step === "nudge" && previous?.forTurn !== card.lastAt ? 1 : 0),
+  isDelivered,
+});

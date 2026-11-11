@@ -28,6 +28,7 @@ const VERDICT = JSON.stringify({
   followUps: [],
   isLastMile: false,
   isFinished: false,
+  canFinishAlone: false,
 });
 
 const categoryOf = (argv: string[]): keyof Counters => {
