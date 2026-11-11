@@ -12,7 +12,9 @@ import {
   readPending,
   readNeedsSetup,
   readCollapsedGroups,
+  readAutoPilot,
   areClickLayersHealthy,
+  toggleAutoPilot,
   toggleCompose,
   toggleGroup,
   sendText,
@@ -117,6 +119,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     ranking,
     isSettingUp,
     collapsedGroups,
+    autoPilotMarks,
   ] = await Promise.all([
     readCards($),
     readPreviewed($),
@@ -126,8 +129,10 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     loadRanking($),
     readNeedsSetup($),
     readCollapsedGroups($),
+    readAutoPilot($),
   ]);
   const Input = "Input" in resolved ? resolved.Input : null;
+  const isOnAutoPilot = (card: SessionCard) => card.id in autoPilotMarks;
   const isProcessing = (card: SessionCard) =>
     card.isRunning || (pendingAt[card.id] ?? 0) > card.lastAt;
   const canCompose = (card: SessionCard) =>
@@ -258,6 +263,11 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     const band = card.isRunning ? null : card.band;
     return (
       <Text wrap="wrap">
+        {isOnAutoPilot(card) && (
+          <Text color="claude" weight="semibold">
+            Auto-pilot{" "}
+          </Text>
+        )}
         {band && (
           <Text color={band.color} weight="semibold">
             {band.name}{" "}
@@ -442,7 +452,22 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
         </Box>
       )}
       {previewedId === card.id && (
-        <Box marginTop={1} flexDirection="row" justifyContent="center">
+        <Box
+          marginTop={1}
+          flexDirection="row"
+          justifyContent="center"
+          columnGap={3}
+        >
+          {!card.isScheduled && (
+            <Button
+              key={`auto-pilot-${card.id}`}
+              plain
+              dimColor={!isOnAutoPilot(card)}
+              hover={{ dimColor: false, underline: true }}
+              label={isOnAutoPilot(card) ? "Auto-pilot: on" : "Auto-pilot: off"}
+              onPress={() => toggleAutoPilot($, card.id)}
+            />
+          )}
           <Button
             key={`collapse-${card.id}`}
             plain

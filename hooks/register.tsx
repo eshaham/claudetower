@@ -1,4 +1,4 @@
-import type { Register } from "claude-code";
+import type { EngineInterface, Register } from "claude-code";
 
 import type { CardHitMessage } from "../types";
 import {
@@ -13,7 +13,10 @@ import {
   openPane,
   openSession,
   poll,
+  readAutoPilotMarks,
+  readCards,
   readNeedsSetup,
+  setAutoPilot,
   setPaneOpen,
   toggleCompose,
   toggleGroup,
@@ -26,6 +29,7 @@ import {
   PLUGIN,
   POLL_MS,
   discoverHost,
+  host,
   log,
   setTicketPrefixes,
 } from "./lib/config";
@@ -38,6 +42,29 @@ import { renderAbovePrompt } from "./view/above-prompt";
 import { renderPane } from "./view/pane";
 import { renderSetupBand } from "./view/setup";
 
+async function switchAutoPilot($: EngineInterface, args: string) {
+  const self = (await readCards($)).find(
+    (card) => card.cliId === host.selfCliId,
+  );
+  if (!self)
+    return {
+      text: "claudetower has not read this session yet. Try again in a few seconds.",
+    };
+  const asked = args.trim().toLowerCase();
+  const isOn =
+    asked === "on"
+      ? true
+      : asked === "off"
+        ? false
+        : !(self.id in (await readAutoPilotMarks($)));
+  await setAutoPilot($, self.id, isOn);
+  return {
+    text: isOn
+      ? "Auto-pilot is on. When this session goes idle with nothing that needs you, claudetower tells it to finish, merge its PR and archive."
+      : "Auto-pilot is off.",
+  };
+}
+
 export const register: Register = (on, options) => {
   setTicketPrefixes(String(options.ticketPrefixes ?? ""));
 
@@ -48,6 +75,12 @@ export const register: Register = (on, options) => {
     await $.command.register({
       name: "tower",
       description: "Open the claudetower session board",
+    });
+    await $.command.register({
+      name: "auto-pilot",
+      description:
+        "Let this session finish on its own: merge its PR and archive when nothing needs you",
+      argumentHint: "[on|off]",
     });
     await $.tool.register(RANKING_TOOL_SPEC);
     void discoverHost($)
@@ -95,6 +128,13 @@ export const register: Register = (on, options) => {
 
     return { text: "Session board opened." };
   });
+
+  on("command.run", { command: "auto-pilot" }, ($, e) =>
+    switchAutoPilot($, e.args).catch((error: unknown) => {
+      log($, `could not switch auto-pilot: ${String(error)}`);
+      return { text: "Could not switch auto-pilot." };
+    }),
+  );
 
   on("ui.message", async ($, e) => {
     const message = e.data as CardHitMessage;

@@ -25,7 +25,7 @@ const RUN_PROBLEM_URGENCY = 70;
 
 const SESSION_RULES = `You read how a Claude Code session ended and tell its user where it stands.
 Answer with one JSON object and nothing else:
-{"status": "needs_you" | "waiting_on_others" | "done", "kind": "do" | "decide" | "review" | null, "urgency": number, "labels": string[], "waitingFor": string, "followUps": string[], "isLastMile": boolean, "isFinished": boolean}
+{"status": "needs_you" | "waiting_on_others" | "done", "kind": "do" | "decide" | "review" | null, "urgency": number, "labels": string[], "waitingFor": string, "followUps": string[], "isLastMile": boolean, "isFinished": boolean, "canFinishAlone": boolean}
 - needs_you: the session cannot usefully go on until the user acts, answers, decides or reviews. kind says which: do = act outside the session (create a credential, set a secret, run or approve something elsewhere); decide = a choice, approval or go-ahead; review = look at something the session produced.
 - waiting_on_others: it waits on CI, a bot review, a deploy, another session, a teammate or a later time.
 - done: the work is finished and nothing is pending.
@@ -44,7 +44,8 @@ Answer with one JSON object and nothing else:
 - waitingFor: at most 12 words. What it waits for; for done, what it achieved.
 - followUps: up to 3 things the user can do right now that need this session's work, at most 15 words each (merge a ready PR, ask a reviewer). Never a step that depends on something that has not happened yet; that belongs in waitingFor. Never "archive this session". Empty when there are none.
 - isLastMile: true when the work is done or nearly done and only a small final step from the user is left: merge a ready PR, answer a last yes/no, glance at a finished change. False when real work remains.
-- isFinished: true when this session has nothing left to do and the user could archive it now: its task is complete, any PR it opened has merged or been closed, and nothing it is waiting for will bring it back. A session that hands remaining work to another session, ticket or person is finished. When in doubt, false.`;
+- isFinished: true when this session has nothing left to do and the user could archive it now: its task is complete, any PR it opened has merged or been closed, and nothing it is waiting for will bring it back. A session that hands remaining work to another session, ticket or person is finished. When in doubt, false.
+- canFinishAlone: true when the session could take everything left to a merged PR and a finished task on its own, given a standing go-ahead from the user to finish the work, commit, push, open and merge its PR, and archive. That covers steps it only waits on a go-ahead for, fixing failing checks, answering automated or bot review, and waiting for checks to finish. False when it needs information or a real choice from the user, an action outside the session (a credential, a secret, an approval elsewhere), a human reviewer, or a risky step beyond merging (a production deploy, a data migration, an infrastructure apply). False when isFinished is true.`;
 
 const urgencyRulesOf = (ranking: Ranking) =>
   ranking.rules.length === 0
@@ -77,6 +78,7 @@ export const SILENT_STOP: Verdict = {
   labels: [],
   isLastMile: false,
   isFinished: false,
+  canFinishAlone: false,
 };
 
 const jsonObjectOf = <T>(text: string): T | null => {
@@ -118,6 +120,7 @@ const parseSessionVerdict = (
     labels: labelsOf(raw.labels, ranking),
     isLastMile: raw.isLastMile === true,
     isFinished: raw.isFinished === true,
+    canFinishAlone: raw.canFinishAlone === true && raw.isFinished !== true,
   };
 };
 
@@ -137,6 +140,7 @@ const parseRunVerdict = (text: string): Verdict | null => {
     labels: [],
     isLastMile: false,
     isFinished: false,
+    canFinishAlone: false,
   };
 };
 
@@ -148,6 +152,7 @@ export type VerdictContext = {
   ticket: (TicketInfo & { id: string }) | null;
   ranking: Ranking;
   rankingFingerprint: string;
+  isAutoPilot: boolean;
 };
 
 export const verdictKeyOf = ({ s, end }: Live, context: VerdictContext) =>
@@ -159,6 +164,7 @@ export const verdictKeyOf = ({ s, end }: Live, context: VerdictContext) =>
     isRun(s)
       ? "run"
       : `ticket${context.ticket ? `${context.ticket.priority}${context.ticket.isOpen ? "o" : "c"}` : ""}:rank${context.rankingFingerprint}`,
+    ...(context.isAutoPilot ? ["auto"] : []),
   ].join(":");
 
 export async function readVerdicts($: EngineInterface) {

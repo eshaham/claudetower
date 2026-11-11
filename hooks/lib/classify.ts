@@ -1,4 +1,5 @@
 import type { LaneId, PrBadge, SessionCard, Verdict } from "../../types";
+import { isAutoPiloting } from "./auto-pilot";
 import { HOUR_MS } from "./config";
 import { isOpenPr } from "./enrich";
 import type { Ranking } from "./ranking";
@@ -85,6 +86,7 @@ const canArchiveOf = (facts: CardFacts) =>
 const laneOf = (facts: CardFacts, canArchive: boolean): LaneId => {
   const verdict = facts.verdict;
   if (facts.isRunning) return "in-flight";
+  if (isAutoPiloting(facts) && !canArchive) return "in-flight";
   if (verdict?.status === "needs_you")
     return verdict.kind === "do"
       ? "act"
@@ -114,7 +116,8 @@ export const classify = (facts: CardFacts, ranking: Ranking): SessionCard => {
     isFinishing:
       !facts.isRunning &&
       !facts.isScheduled &&
-      (canArchive || facts.verdict?.isLastMile === true),
+      (canArchive ||
+        (facts.verdict?.isLastMile === true && !isAutoPiloting(facts))),
     band:
       facts.verdict && band.color
         ? { name: band.name, color: band.color }
@@ -141,6 +144,8 @@ export const isUnread = (card: SessionCard) =>
 export const reasonOf = (card: SessionCard) => {
   if (card.isRunning) return "Working now";
   const verdict = card.verdict;
+  if (isAutoPiloting(card) && !card.canArchive)
+    return `Finishing on its own · ${verdict?.waitingFor ?? ""}`;
   if (verdict?.status === "needs_you") return verdict.waitingFor;
   const followUp = followUpOf(verdict);
   if (followUp !== "") return followUp;

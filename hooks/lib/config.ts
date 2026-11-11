@@ -53,6 +53,8 @@ export const STORE_KEYS = {
   projects: "projects-v1",
   isOpen: "isOpen",
   collapsedGroups: "collapsed-groups",
+  autoPilot: "auto-pilot",
+  nudges: "auto-pilot-nudges",
 } as const;
 
 export const TICKET_TTL_MS = 30 * MINUTE_MS;
