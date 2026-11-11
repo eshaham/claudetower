@@ -398,8 +398,28 @@ function leaseFileOf($: EngineInterface): LeaseFile {
   };
 }
 
+const HAND_OFF_MS = 2 * LEASE_EXPIRES_MS;
+const handedOff = new Set<string>();
+let handOffUntil = 0;
+
+async function handOffBoard($: EngineInterface, card: SessionCard) {
+  if (handedOff.has(card.id)) return;
+  handedOff.add(card.id);
+  log(
+    $,
+    `handing off the board so another session can archive "${card.title}"`,
+  );
+  handOffUntil = Date.now() + HAND_OFF_MS;
+  isLeader = false;
+  await leaseFileOf($).write({ id: host.selfCliId, at: 0 });
+}
+
 export async function leaseTick($: EngineInterface) {
   if (!host.selfCliId || !(await findInstance($))) return;
+  if (Date.now() < handOffUntil) {
+    isLeader = false;
+    return;
+  }
   const wasLeader = isLeader;
   isLeader = await holdLease(
     leaseFileOf($),
@@ -697,6 +717,12 @@ async function driveAutoFinish($: EngineInterface, built: SessionCard[]) {
   const now = Date.now();
   const due = built.flatMap((card) => {
     const step = autoFinishStepOf(card, nudges[card.id], now);
+    if (step === "archive" && card.cliId === host.selfCliId) {
+      void handOffBoard($, card).catch((error: unknown) =>
+        log($, `could not hand off the board: ${String(error)}`),
+      );
+      return [];
+    }
     return step === "wait" ? [] : [{ card, step }];
   });
   if (due.length === 0) return;
