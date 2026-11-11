@@ -2,7 +2,7 @@ import { atom, read, update } from "claude-code";
 import type { EngineInterface } from "claude-code";
 
 import type { SessionAction, SessionCard } from "../../types";
-import type { AutoFinishMarks, Nudges } from "./auto-finish";
+import type { AutoFinishMarks, Nudge, Nudges } from "./auto-finish";
 import {
   AUTO_FINISH_ACTION,
   autoFinishStepOf,
@@ -538,13 +538,22 @@ async function forgetAutoFinish($: EngineInterface, ids: Set<string>) {
   await update($, autoFinish, () => kept);
 }
 
+async function writeNudge($: EngineInterface, id: string, nudge: Nudge) {
+  await $.store.set(instanceKey(STORE_KEYS.nudges), {
+    ...(await readNudges($)),
+    [id]: nudge,
+  });
+}
+
 export async function setAutoFinish(
   $: EngineInterface,
   id: string,
   isOn: boolean,
+  hold?: Nudge,
 ) {
   await forgetAutoFinish($, new Set([id]));
   if (isOn) {
+    if (hold) await writeNudge($, id, hold);
     const marks = { ...(await readAutoFinishMarks($)), [id]: Date.now() };
     await $.store.set(instanceKey(STORE_KEYS.autoFinish), marks);
     await update($, autoFinish, () => marks);
@@ -554,8 +563,46 @@ export async function setAutoFinish(
   );
 }
 
+const WAKE_ATTEMPTS = 4;
+
+async function kickOff($: EngineInterface, card: SessionCard, hold: Nudge) {
+  let isDelivered = await deliver($, card, AUTO_FINISH_ACTION.message);
+  if (!isDelivered) {
+    log($, `auto-finish: opening "${card.title}" to wake it`);
+    await openSession($, card.id);
+    for (let attempt = 0; attempt < WAKE_ATTEMPTS && !isDelivered; attempt += 1)
+      isDelivered = await deliver($, card, AUTO_FINISH_ACTION.message);
+  }
+  if (!isDelivered) {
+    log(
+      $,
+      `auto-finish: "${card.title}" did not wake; the board retries later`,
+    );
+    return;
+  }
+  await writeNudge($, card.id, {
+    ...hold,
+    at: Date.now(),
+    isDelivered: true,
+    hasStarted: true,
+  });
+}
+
 export async function toggleAutoFinish($: EngineInterface, id: string) {
-  await setAutoFinish($, id, !(id in (await readAutoFinishMarks($))));
+  const isOn = !(id in (await readAutoFinishMarks($)));
+  const card = (await readCards($)).find((one) => one.id === id);
+  if (!isOn || !card || card.cliId === host.selfCliId || card.isScheduled) {
+    await setAutoFinish($, id, isOn);
+    return;
+  }
+  const hold: Nudge = {
+    forTurn: card.lastAt,
+    at: Date.now(),
+    count: 1,
+    isDelivered: false,
+  };
+  await setAutoFinish($, id, true, hold);
+  inBackground($, `auto-finish kickoff ${id}`, () => kickOff($, card, hold));
 }
 
 export function readAutoFinish($: EngineInterface) {
