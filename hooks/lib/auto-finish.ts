@@ -30,8 +30,17 @@ export const isAutoFinishing = (
 ) => card.isAutoFinish && card.verdict?.canFinishAlone === true;
 
 export const isAutoFinishPaused = (
-  card: Pick<SessionCard, "verdict" | "canArchive">,
-) => card.verdict?.canFinishAlone === false && !card.canArchive;
+  card: Pick<
+    SessionCard,
+    "verdict" | "canArchive" | "isRunning" | "isScheduled" | "isRereading"
+  >,
+) =>
+  !card.isRunning &&
+  !card.isScheduled &&
+  !card.isRereading &&
+  !card.canArchive &&
+  card.verdict?.status === "needs_you" &&
+  !card.verdict.canFinishAlone;
 
 export const isWaitingOnChildren = (
   card: Pick<SessionCard, "canArchive" | "childIds">,

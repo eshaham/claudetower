@@ -221,6 +221,27 @@ describe("auto-finish paused", () => {
     assert.equal(autoFinishStepOf(card, STARTED(), NOW), "wait");
   });
 
+  it("is not paused while the session works or its reading is redone", () => {
+    const blocked = verdictOf({ canFinishAlone: false });
+    assert.equal(
+      isAutoFinishPaused(cardOf({ verdict: blocked, isRunning: true })),
+      false,
+    );
+    assert.equal(
+      isAutoFinishPaused(cardOf({ verdict: blocked, isRereading: true })),
+      false,
+    );
+  });
+
+  it("is not paused while it waits on others", () => {
+    const waiting = verdictOf({
+      status: "waiting_on_others",
+      kind: null,
+      canFinishAlone: false,
+    });
+    assert.equal(isAutoFinishPaused(cardOf({ verdict: waiting })), false);
+  });
+
   it("is not paused when it can finish alone or has no verdict yet", () => {
     assert.equal(isAutoFinishPaused(cardOf()), false);
     assert.equal(isAutoFinishPaused(cardOf({ verdict: null })), false);
