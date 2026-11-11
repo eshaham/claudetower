@@ -4,6 +4,8 @@ export type ContentBlock = {
   type?: string;
   text?: string;
   name?: string;
+  id?: string;
+  tool_use_id?: string;
   input?: {
     ask?: string;
     actions?: { label?: string; message?: string }[];
@@ -38,6 +40,7 @@ export type TranscriptState = {
   turnLastId: string;
   question: string;
   options: SessionAction[];
+  questionCallId?: string;
   skippedLines: number;
 };
 
@@ -62,6 +65,7 @@ export type Limits = {
 const REPLY_MARKER = /<!--\s*reply[^>]*-->/gi;
 const SYSTEM_REMINDER = /<system-reminder>[\s\S]*?<\/system-reminder>/g;
 const SUGGESTION_TOOLS = /(__wrap_up|^AskUserQuestion)$/;
+const QUESTION_TOOL = "AskUserQuestion";
 const PROMPTS_KEPT = 20;
 
 export const emptyState = (): TranscriptState => ({
@@ -123,6 +127,7 @@ const suggestionOf = (line: TranscriptLine) => {
   const input = call.input;
   const asked = input?.questions?.[0];
   return {
+    callId: call.name === QUESTION_TOOL ? (call.id ?? "") : "",
     question: input?.ask ?? asked?.question ?? "",
     options: [
       ...(input?.actions ?? []).map((action) => ({
@@ -135,6 +140,17 @@ const suggestionOf = (line: TranscriptLine) => {
       })),
     ].filter((action) => action.label !== ""),
   };
+};
+
+const isAnswered = (line: TranscriptLine, callId: string | undefined) => {
+  const content = line.message?.content;
+  return (
+    !!callId &&
+    Array.isArray(content) &&
+    content.some(
+      (block) => block.type === "tool_result" && block.tool_use_id === callId,
+    )
+  );
 };
 
 function applyLine(
@@ -166,8 +182,12 @@ function applyLine(
       turnLastId: "",
       question: "",
       options: [],
+      questionCallId: "",
     };
-  if (line.type !== "assistant") return { ...state, last };
+  if (line.type !== "assistant")
+    return isAnswered(line, state.questionCallId)
+      ? { ...state, last, question: "", options: [], questionCallId: "" }
+      : { ...state, last };
   const text = textOf(line);
   const suggestion = suggestionOf(line);
   return {
@@ -181,6 +201,7 @@ function applyLine(
     turnLastId: line.uuid ?? state.turnLastId,
     question: suggestion ? suggestion.question : state.question,
     options: suggestion ? suggestion.options : state.options,
+    questionCallId: suggestion ? suggestion.callId : state.questionCallId,
   };
 }
 

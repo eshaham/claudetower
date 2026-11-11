@@ -116,3 +116,38 @@ export const fakeEngine = () => {
   };
   return { $: engine as unknown as EngineInterface, calls };
 };
+
+export const questionLine = (minute: number, id: string) =>
+  JSON.stringify({
+    type: "assistant",
+    uuid: `q${minute}`,
+    timestamp: at(minute),
+    message: {
+      stop_reason: "tool_use",
+      content: [
+        {
+          type: "tool_use",
+          id,
+          name: "AskUserQuestion",
+          input: {
+            questions: [
+              {
+                question: "Which one?",
+                options: [{ label: "A" }, { label: "B" }],
+              },
+            ],
+          },
+        },
+      ],
+    },
+  });
+
+export const answerLine = (minute: number, id: string) =>
+  JSON.stringify({
+    type: "user",
+    uuid: `r${minute}`,
+    timestamp: at(minute),
+    message: {
+      content: [{ type: "tool_result", tool_use_id: id, content: "A" }],
+    },
+  });
