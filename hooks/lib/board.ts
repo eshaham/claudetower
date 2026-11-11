@@ -671,9 +671,17 @@ async function driveAutoFinish($: EngineInterface, built: SessionCard[]) {
       ] as const;
     }),
   );
+  const stored = await readNudges($);
   await $.store.set(instanceKey(STORE_KEYS.nudges), {
-    ...(await readNudges($)),
-    ...Object.fromEntries(taken),
+    ...stored,
+    ...Object.fromEntries(
+      taken.map(([id, nudge]) => [
+        id,
+        stored[id]?.hasStarted && !nudge.hasStarted
+          ? { ...nudge, isDelivered: true, hasStarted: true }
+          : nudge,
+      ]),
+    ),
   });
 }
 
@@ -799,6 +807,18 @@ export async function takeAutoFinishMessage($: EngineInterface, text: string) {
   } | null;
   const self = board?.cards?.find((card) => card.cliId === host.selfCliId);
   if (!self || !(self.id in (await readAutoFinishMarks($)))) return false;
+  const nudges = await readNudges($);
+  await $.store.set(instanceKey(STORE_KEYS.nudges), {
+    ...nudges,
+    [self.id]: {
+      forTurn: self.lastAt,
+      count: 0,
+      ...nudges[self.id],
+      at: Date.now(),
+      isDelivered: true,
+      hasStarted: true,
+    },
+  });
   void $.prompt
     .submit({ text: AUTO_FINISH_ACTION.message, asUser: true })
     .catch((error: unknown) =>
