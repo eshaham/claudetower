@@ -157,6 +157,7 @@ export type VerdictContext = {
   ranking: Ranking;
   rankingFingerprint: string;
   isAutoFinish: boolean;
+  isSetUpInApp: boolean;
 };
 
 export const verdictKeyOf = ({ s, end }: Live, context: VerdictContext) =>

@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import type { SessionCard, Verdict } from "../types";
 import type { Nudge } from "../hooks/lib/auto-finish";
 import {
+  isAutoFinishOn,
   MAX_NUDGES,
   NUDGE_RETRY_MS,
   autoFinishStepOf,
@@ -17,6 +18,17 @@ import { DEFAULT_RANKING } from "../hooks/lib/ranking";
 
 const NOW = 1_000_000_000;
 const TURN = NOW - 60_000;
+
+const MERGED = [
+  {
+    number: 7,
+    state: "merged" as const,
+    additions: 1,
+    deletions: 1,
+    failing: 0,
+    pending: 0,
+  },
+];
 
 const verdictOf = (overrides: Partial<Verdict> = {}): Verdict => ({
   status: "needs_you",
@@ -178,7 +190,7 @@ describe("auto-finish steps", () => {
 
   it("archives a finished auto-finish session", () => {
     const card = cardOf({
-      prs: [],
+      prs: MERGED,
       verdict: verdictOf({
         status: "done",
         kind: null,
@@ -251,7 +263,7 @@ describe("auto-finish paused", () => {
 describe("auto-finish with started sessions", () => {
   const finished = (childIds: string[]) =>
     cardOf({
-      prs: [],
+      prs: MERGED,
       childIds,
       verdict: verdictOf({
         status: "done",
@@ -276,7 +288,7 @@ describe("auto-finish with started sessions", () => {
 describe("auto-finish archiving", () => {
   it("tries to archive only once", () => {
     const card = cardOf({
-      prs: [],
+      prs: MERGED,
       verdict: verdictOf({
         status: "done",
         kind: null,
@@ -287,7 +299,7 @@ describe("auto-finish archiving", () => {
     const tried = nudgeAfter(STARTED(), card, "archive", false, NOW);
     assert.equal(tried.hasTriedArchive, true);
     const nextTurn = cardOf({
-      prs: [],
+      prs: MERGED,
       lastAt: TURN + 60_000,
       verdict: card.verdict,
     });
@@ -295,5 +307,38 @@ describe("auto-finish archiving", () => {
       autoFinishStepOf(nextTurn, tried, NOW + NUDGE_RETRY_MS),
       "wait",
     );
+  });
+});
+
+describe("auto-finish without a PR", () => {
+  it("never archives a finished session that had no PR", () => {
+    const card = cardOf({
+      prs: [],
+      verdict: verdictOf({
+        status: "done",
+        kind: null,
+        isFinished: true,
+        canFinishAlone: false,
+      }),
+    });
+    assert.equal(card.canArchive, true);
+    assert.notEqual(autoFinishStepOf(card, STARTED(), NOW), "archive");
+  });
+});
+
+describe("auto-finish set up in the app", () => {
+  it("is on when the app finishes the session, unless switched off", () => {
+    assert.equal(isAutoFinishOn({}, "a", true), true);
+    assert.equal(isAutoFinishOn({ a: -1 }, "a", true), false);
+    assert.equal(isAutoFinishOn({ a: 1 }, "a", false), true);
+    assert.equal(isAutoFinishOn({}, "a", false), false);
+  });
+
+  it("skips the kickoff message for a session the app already finishes", () => {
+    const card = cardOf({
+      isSetUpInApp: true,
+      verdict: verdictOf({ canFinishAlone: false }),
+    });
+    assert.equal(autoFinishStepOf(card, undefined, NOW), "wait");
   });
 });

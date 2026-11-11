@@ -32,7 +32,12 @@ import {
   withoutQuotedReplies,
 } from "./transcript-state";
 
-export type SessionPr = { prNumber?: number; state?: string; repo?: string };
+export type SessionPr = {
+  prNumber?: number;
+  state?: string;
+  repo?: string;
+  autoFix?: boolean;
+};
 
 export type SessionFile = {
   sessionId: string;
@@ -43,6 +48,7 @@ export type SessionFile = {
   originCwd?: string;
   branch?: string;
   prs?: SessionPr[];
+  autoArchiveOnPrClose?: boolean;
   scheduledTaskId?: string;
   lastActivityAt?: number;
   spawnedFrom?: { sessionId?: string };

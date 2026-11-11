@@ -29,6 +29,7 @@ export type PrState = "open" | "draft" | "merged" | "closed";
 export type PrBadge = {
   number: number;
   state: PrState;
+  isAutoMerge?: boolean;
   additions: number;
   deletions: number;
   failing: number;
@@ -60,6 +61,7 @@ export type SessionCard = {
   verdict: Verdict | null;
   isRereading: boolean;
   isAutoFinish: boolean;
+  isSetUpInApp?: boolean;
   childIds: string[];
   lane: LaneId;
   canArchive: boolean;

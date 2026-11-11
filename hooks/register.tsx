@@ -41,6 +41,7 @@ import {
   RANKING_TOOL_SPEC,
   runRankingTool,
 } from "./lib/ranking-tool";
+import { isAutoFinishOn } from "./lib/auto-finish";
 import { answersOf, raceOpenQuestion } from "./lib/open-question";
 import { renderAbovePrompt } from "./view/above-prompt";
 import { renderPane } from "./view/pane";
@@ -60,7 +61,11 @@ async function switchAutoFinish($: EngineInterface, args: string) {
       ? true
       : asked === "off"
         ? false
-        : !(self.id in (await readAutoFinishMarks($)));
+        : !isAutoFinishOn(
+            await readAutoFinishMarks($),
+            self.id,
+            self.isSetUpInApp === true,
+          );
   await setAutoFinish($, self.id, isOn);
   return {
     text: isOn
