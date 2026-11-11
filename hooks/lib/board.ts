@@ -584,8 +584,9 @@ async function sendThroughApp(
   const sent = await $.tool.call({ tool: SEND_TO_SESSION, ...input });
   const isSent =
     sent.deny === undefined &&
-    !sent.isError &&
-    /delivery: (delivered|queued)/.test(sent.text ?? "");
+    /delivery: (delivered|queued)|can still pick it up later/.test(
+      sent.text ?? "",
+    );
   if (!isSent)
     log(
       $,
