@@ -33,6 +33,21 @@ describe("lease decisions", () => {
     );
   });
 
+  it("takes a fresh lease from a session running older code", () => {
+    assert.equal(
+      leaseActionOf({ id: "b", at: 1000 }, "a", 2000, EXPIRES, 2),
+      "take",
+    );
+    assert.equal(
+      leaseActionOf({ id: "b", at: 1000, version: 2 }, "a", 2000, EXPIRES, 2),
+      "follow",
+    );
+    assert.equal(
+      leaseActionOf({ id: "b", at: 1000, version: 3 }, "a", 2000, EXPIRES, 2),
+      "follow",
+    );
+  });
+
   it("takes a lease nobody holds, or one whose holder went quiet", () => {
     assert.equal(leaseActionOf(null, "a", 0, EXPIRES), "take");
     assert.equal(

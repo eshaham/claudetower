@@ -102,6 +102,8 @@ Clone the repo and load it from your clone in every session, so your edits apply
 
 `CLAUDE_CODE_PLUGIN_DIR_WATCH` makes running sessions reload the panel when its files change. Sessions read these settings when they start, so restart the Desktop app once after adding them.
 
+A session idle for a long time can keep running the code it last loaded. So that the board is always led by current code, the lease carries `LEADER_VERSION` from `hooks/lib/config.ts`, and a session takes the board from a leader with a lower one. Bump it in any change to what the leader does: reading sessions, auto-finish, sending messages.
+
 Check a change with `claude plugin validate .`, and run the tests with Node 22 or later:
 
 ```bash

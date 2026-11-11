@@ -26,6 +26,7 @@ import {
   instanceKey,
   discoverHost,
   findInstance,
+  LEADER_VERSION,
   LEASE_EXPIRES_MS,
   LEASE_SETTLE_MS,
   LEGACY_ENDS_KEY,
@@ -420,7 +421,11 @@ async function handOffBoard($: EngineInterface, card: SessionCard) {
   );
   handOffUntil = Date.now() + HAND_OFF_MS;
   isLeader = false;
-  await leaseFileOf($).write({ id: host.selfCliId, at: 0 });
+  await leaseFileOf($).write({
+    id: host.selfCliId,
+    at: 0,
+    version: LEADER_VERSION,
+  });
 }
 
 export async function leaseTick($: EngineInterface) {
@@ -435,6 +440,7 @@ export async function leaseTick($: EngineInterface) {
     host.selfCliId,
     Date.now(),
     LEASE_EXPIRES_MS,
+    LEADER_VERSION,
   );
   if (!isLeader) return;
   if (!wasLeader) {

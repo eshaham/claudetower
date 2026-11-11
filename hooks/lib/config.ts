@@ -20,6 +20,7 @@ export const POLL_MS = 15 * SECOND_MS;
 export const LEASE_TICK_MS = 5 * SECOND_MS;
 export const LEASE_EXPIRES_MS = 30 * SECOND_MS;
 export const LEASE_SETTLE_MS = 300;
+export const LEADER_VERSION = 2;
 export const LOAD_DEBOUNCE_MS = SECOND_MS;
 export const FOLLOW_TICK_MS = 2 * SECOND_MS;
 export const PENDING_MS = 2 * MINUTE_MS;
