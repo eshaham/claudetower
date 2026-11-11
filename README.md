@@ -110,6 +110,19 @@ npx tsx@4 --test tests/*.test.ts
 
 `bench/run.sh <work-dir> [before-ref]` measures CPU with several sessions open, against a copy of your own sessions. It copies the session records and the last 2 MB of each transcript of the default Desktop instance into `<work-dir>/sandbox`, starts 5 sessions of the board code there (with a stub in place of the model), changes 0, 20 or 60 transcripts every 2 seconds, either touching them or appending a line, and prints each session's CPU (including the processes it starts) and its transcript reads, `git status` runs and change checks. With a git ref, it measures that version first, for a before and after.
 
+### When something looks wrong
+
+claudetower's own log lines (`claudetower: ...`) go to Claude Code's debug log, which is only written when a session runs with `claude --debug`. In the Desktop app, look in the app's logs instead, in `~/Library/Logs/Claude/`:
+
+- `claude.ai-web.log` (and the rotated `claude.ai-web1.log` to `claude.ai-web4.log`) holds what the panel's surface reports: a click layer or other module that failed to load, threw, or stopped answering.
+- `main.log` holds the app's side: sessions starting, PR checks, trust prompts.
+
+```bash
+grep -h "card-hit\|claudetower" ~/Library/Logs/Claude/claude.ai-web*.log | tail -20
+```
+
+One line per card, all at the same moment, reading `an instance of hooks/card-hit.tsx did not answer a render within 2000ms`, means the app stalled for a moment rather than a bug in the board. claudetower then uses plain buttons for two minutes and recovers on its own. A line naming one module with an error message points at that module.
+
 ## License
 
 MIT
