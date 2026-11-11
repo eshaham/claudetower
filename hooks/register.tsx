@@ -60,7 +60,7 @@ async function switchAutoFinish($: EngineInterface, args: string) {
   await setAutoFinish($, self.id, isOn);
   return {
     text: isOn
-      ? "Auto-finish is on. When this session goes idle with nothing that needs you, claudetower tells it to finish, merge its PR and archive."
+      ? "Auto-finish is on. claudetower will tell this session to finish, merge its PR and archive, and it will ask you for anything it needs."
       : "Auto-finish is off.",
   };
 }

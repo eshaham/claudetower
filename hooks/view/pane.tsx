@@ -19,7 +19,7 @@ import {
   sendText,
   startAction,
 } from "../lib/board";
-import { isAutoFinishPaused, isWaitingOnChildren } from "../lib/auto-finish";
+import { isAutoFinishPaused } from "../lib/auto-finish";
 import {
   LANES,
   badgeOf,
@@ -259,21 +259,6 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     const band = card.isRunning ? null : card.band;
     return (
       <Text wrap="wrap">
-        {isOnAutoFinish(card) &&
-          (isAutoFinishPaused(card) ? (
-            <Text dimColor weight="semibold">
-              Auto-finish paused, needs you{" "}
-            </Text>
-          ) : isWaitingOnChildren(card) ? (
-            <Text color="claude" weight="semibold">
-              Auto-finish waiting on {card.childIds.length} started{" "}
-              {card.childIds.length === 1 ? "session" : "sessions"}{" "}
-            </Text>
-          ) : (
-            <Text color="claude" weight="semibold">
-              Auto-finish{" "}
-            </Text>
-          ))}
         {band && (
           <Text color={band.color} weight="semibold">
             {band.name}{" "}
@@ -337,7 +322,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
       paddingX={1}
     >
       <Box key={`body-${card.id}`} position="relative" flexDirection="column">
-        <Box paddingRight={13}>
+        <Box paddingRight={15}>
           {Client ? (
             <Text weight="semibold" wrap="wrap">
               {card.title}
@@ -391,13 +376,24 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
             columnGap={1}
             alignItems="center"
           >
-            {Svg && Client && <Text dimColor={!isOnAutoFinish(card)}>Auto</Text>}
+            {Svg && Client && (
+              <Text dimColor={!isOnAutoFinish(card)}>
+                {isOnAutoFinish(card) && (
+                  <Text color={isAutoFinishPaused(card) ? "error" : "success"}>
+                    ●{" "}
+                  </Text>
+                )}
+                Auto
+              </Text>
+            )}
             {Svg && Client ? (
               <Svg
                 source={autoFinishSwitch(isOnAutoFinish(card))}
                 alt={
                   isOnAutoFinish(card)
-                    ? "Auto-finish is on; turn it off"
+                    ? isAutoFinishPaused(card)
+                      ? "Auto-finish is on and waiting for you; turn it off"
+                      : "Auto-finish is on; turn it off"
                     : "Auto-finish is off; turn it on"
                 }
                 width={SWITCH_WIDTH}
