@@ -20,6 +20,8 @@ import {
   startAction,
 } from "../lib/board";
 import { isAutoFinishPaused } from "../lib/auto-finish";
+import type { Places } from "../lib/hold";
+import { holdPlaces, placesOf } from "../lib/hold";
 import {
   LANES,
   badgeOf,
@@ -100,6 +102,10 @@ const composerRows = (text: string, width: number) => {
   return Math.min(COMPOSER_MAX_ROWS, Math.max(2, rows));
 };
 
+const HOLD_MS = MINUTE_MS;
+let previousSections: Places = {};
+let previousLanes: Places = {};
+
 export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
   const resolved = $.ui.resolve(e);
   const { Box, Text, Button } = resolved;
@@ -138,13 +144,32 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
   const self = list.find(isSelf);
   const others = list.filter((card) => !isSelf(card));
   const listed = others.filter((card) => belongsInList(card, ranking));
-  const ranked = listed.filter((card) => !card.isFinishing);
-  const finishing = listed
-    .filter((card) => card.isFinishing)
-    .sort((a, b) => b.ageMs - a.ageMs);
-  const running = others.filter(
-    (card) => card.isRunning && card.ageMs < FRESH_MS,
+  const now = Date.now();
+  const held = new Set(
+    [
+      composingId,
+      ...Object.entries(autoFinishMarks)
+        .filter(([, at]) => now - at < HOLD_MS)
+        .map(([id]) => id),
+    ].filter(Boolean),
   );
+  const byId = new Map(others.map((card) => [card.id, card]));
+  const sections = holdPlaces(
+    {
+      finish: listed
+        .filter((card) => card.isFinishing)
+        .sort((a, b) => b.ageMs - a.ageMs),
+      open: listed.filter((card) => !card.isFinishing),
+      running: others.filter((card) => card.isRunning && card.ageMs < FRESH_MS),
+    },
+    previousSections,
+    held,
+    byId,
+  );
+  previousSections = placesOf(sections);
+  const finishing = sections.finish ?? [];
+  const ranked = sections.open ?? [];
+  const running = sections.running ?? [];
   const asking = ranked.filter(isAskingYou).length;
   const unread = others.filter(isUnread).length;
 
@@ -508,15 +533,26 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
   if (list.length === 0) return <Text dimColor>Loading your sessions…</Text>;
 
   if (width >= BOARD_MIN_COLUMNS) {
+    const shown = [...finishing, ...ranked, ...running];
+    const lanes = holdPlaces(
+      Object.fromEntries(
+        LANES.map((lane) => [
+          lane.id,
+          shown.filter((card) => card.lane === lane.id),
+        ]),
+      ),
+      previousLanes,
+      held,
+      byId,
+    );
+    previousLanes = placesOf(lanes);
     const laneWidth = `${Math.floor(100 / LANES.length)}%`;
     return (
       <Box flexDirection="column" rowGap={1}>
         {summary}
         <Box flexDirection="row" columnGap={1}>
           {LANES.map((lane) => {
-            const items = [...finishing, ...ranked, ...running].filter(
-              (card) => card.lane === lane.id,
-            );
+            const items = lanes[lane.id] ?? [];
             return (
               <Box
                 key={lane.id}
