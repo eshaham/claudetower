@@ -27,6 +27,10 @@ export const isAutoPiloting = (
   card: Pick<SessionCard, "isAutoPilot" | "verdict">,
 ) => card.isAutoPilot && card.verdict?.canFinishAlone === true;
 
+export const isAutoPilotPaused = (
+  card: Pick<SessionCard, "verdict" | "canArchive">,
+) => card.verdict?.canFinishAlone === false && !card.canArchive;
+
 const isHandled = (nudge: Nudge | undefined, card: SessionCard, now: number) =>
   nudge?.forTurn === card.lastAt &&
   (nudge.isDelivered || now - nudge.at < NUDGE_RETRY_MS);
