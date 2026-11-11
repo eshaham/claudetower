@@ -1,4 +1,4 @@
-export type Lease = { id: string; at: number };
+export type Lease = { id: string; at: number; version?: number };
 
 export type LeaseFile = {
   read: () => Promise<Lease | null>;
@@ -19,10 +19,11 @@ export function leaseActionOf(
   self: string,
   now: number,
   expiresAfterMs: number,
+  version = 0,
 ): LeaseAction {
   if (current?.id === self) return "renew";
   if (!current || now - current.at > expiresAfterMs) return "take";
-  return "follow";
+  return (current.version ?? 0) < version ? "take" : "follow";
 }
 
 export async function holdLease(
@@ -30,10 +31,17 @@ export async function holdLease(
   self: string,
   now: number,
   expiresAfterMs: number,
+  version = 0,
 ) {
-  const action = leaseActionOf(await file.read(), self, now, expiresAfterMs);
+  const action = leaseActionOf(
+    await file.read(),
+    self,
+    now,
+    expiresAfterMs,
+    version,
+  );
   if (action === "follow") return false;
-  await file.write({ id: self, at: now });
+  await file.write({ id: self, at: now, version });
   if (action === "renew") return true;
   await file.settle();
   return (await file.read())?.id === self;
