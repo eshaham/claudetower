@@ -9,6 +9,7 @@ export type Nudge = {
   count: number;
   isDelivered: boolean;
   hasStarted?: boolean;
+  hasTriedArchive?: boolean;
 };
 
 export type Nudges = Record<string, Nudge>;
@@ -52,7 +53,8 @@ export const autoFinishStepOf = (
     isHandled(nudge, card, now)
   )
     return "wait";
-  if (card.canArchive && !isWaitingOnChildren(card)) return "archive";
+  if (card.canArchive && !isWaitingOnChildren(card))
+    return nudge?.hasTriedArchive ? "wait" : "archive";
   if (!nudge?.hasStarted) return "nudge";
   if (card.isRereading || card.verdict === null || card.canArchive)
     return "wait";
@@ -77,4 +79,5 @@ export const nudgeAfter = (
   isDelivered,
   hasStarted:
     previous?.hasStarted === true || (step === "nudge" && isDelivered),
+  hasTriedArchive: previous?.hasTriedArchive === true || step === "archive",
 });

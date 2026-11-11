@@ -251,3 +251,28 @@ describe("auto-finish with started sessions", () => {
     assert.equal(autoFinishStepOf(finished([]), undefined, NOW), "archive");
   });
 });
+
+describe("auto-finish archiving", () => {
+  it("tries to archive only once", () => {
+    const card = cardOf({
+      prs: [],
+      verdict: verdictOf({
+        status: "done",
+        kind: null,
+        isFinished: true,
+        canFinishAlone: false,
+      }),
+    });
+    const tried = nudgeAfter(STARTED(), card, "archive", false, NOW);
+    assert.equal(tried.hasTriedArchive, true);
+    const nextTurn = cardOf({
+      prs: [],
+      lastAt: TURN + 60_000,
+      verdict: card.verdict,
+    });
+    assert.equal(
+      autoFinishStepOf(nextTurn, tried, NOW + NUDGE_RETRY_MS),
+      "wait",
+    );
+  });
+});
