@@ -8,6 +8,7 @@ export type Nudge = {
   at: number;
   count: number;
   isDelivered: boolean;
+  hasStarted?: boolean;
 };
 
 export type Nudges = Record<string, Nudge>;
@@ -20,7 +21,7 @@ export const NUDGE_RETRY_MS = 10 * MINUTE_MS;
 export const AUTO_FINISH_ACTION: SessionAction = {
   label: "Auto-finish",
   message:
-    "Auto-finish (claudetower): take this session the rest of the way on your own with the claudetower:auto-finish skill: finish and verify the work, open or update the PR, then turn on Auto-fix, auto-merge and archive-on-merge for it. I consent to merging this session's PR once its checks pass. Stop and ask me only for what you cannot decide or do yourself.",
+    "Auto-finish (claudetower): take this session the rest of the way on your own with the claudetower:auto-finish skill. Start by telling me in one line that auto-finish is on and what is left. If you need my answer on anything, ask me again with the AskUserQuestion tool, even if you asked before. Otherwise finish and verify the work, open or update the PR, then turn on Auto-fix, auto-merge and archive-on-merge for it. I consent to merging this session's PR once its checks pass. Stop and ask me only for what you cannot decide or do yourself.",
 };
 
 export const isAutoFinishing = (
@@ -48,16 +49,17 @@ export const autoFinishStepOf = (
     !card.isAutoFinish ||
     card.isRunning ||
     card.isScheduled ||
-    card.isRereading ||
-    card.verdict === null ||
     isHandled(nudge, card, now)
   )
     return "wait";
-  if (card.canArchive) return isWaitingOnChildren(card) ? "wait" : "archive";
-  if (!card.verdict.canFinishAlone) return "wait";
-  if (card.verdict.status === "waiting_on_others" && (nudge?.count ?? 0) > 0)
+  if (card.canArchive && !isWaitingOnChildren(card)) return "archive";
+  if (!nudge?.hasStarted) return "nudge";
+  if (card.isRereading || card.verdict === null || card.canArchive)
     return "wait";
-  return (nudge?.count ?? 0) >= MAX_NUDGES ? "wait" : "nudge";
+  if (!card.verdict.canFinishAlone) return "wait";
+  if (card.verdict.status === "waiting_on_others" && nudge.count > 0)
+    return "wait";
+  return nudge.count >= MAX_NUDGES ? "wait" : "nudge";
 };
 
 export const nudgeAfter = (
@@ -73,4 +75,6 @@ export const nudgeAfter = (
     (previous?.count ?? 0) +
     (step === "nudge" && previous?.forTurn !== card.lastAt ? 1 : 0),
   isDelivered,
+  hasStarted:
+    previous?.hasStarted === true || (step === "nudge" && isDelivered),
 });
