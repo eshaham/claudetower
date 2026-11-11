@@ -56,9 +56,11 @@ describe("transcript state", () => {
     const asked = [promptLine("Go", 1), questionLine(2, "call-1")].join("\n");
     const waiting = readingOf(readAll(`${asked}\n`), NOW, NOW, limits);
     assert.equal(waiting.isStopped, true);
+    assert.equal(waiting.isAsking, true);
     const working = [promptLine("Go", 1), toolCallLine(2)].join("\n");
     const running = readingOf(readAll(`${working}\n`), NOW, NOW, limits);
     assert.equal(running.isStopped, false);
+    assert.equal(running.isAsking, false);
   });
 
   it("keeps a question when a different tool's result comes back", () => {

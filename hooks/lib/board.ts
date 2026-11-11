@@ -41,7 +41,7 @@ import {
   refreshPrs,
   refreshTickets,
 } from "./enrich";
-import { answerOpenQuestion } from "./open-question";
+import { answerOpenQuestion, questionMarkPathOf } from "./open-question";
 import type { ProjectProfile } from "./project";
 import {
   claim,
@@ -213,6 +213,7 @@ const cardOf = (
       uncommittedFiles: end.uncommittedFiles,
       question: isOfferStale ? "" : end.question,
       options: isOfferStale ? [] : end.options,
+      isAsking: end.isAsking === true,
       isRunning: !end.isStopped,
       isScheduled: Boolean(s.scheduledTaskId),
       ageMs: now - end.lastAt,
@@ -824,6 +825,10 @@ export function isPaneOpen($: EngineInterface) {
 
 const inboxPathOf = (cliId: string) => `${inboxDir()}/${cliId}.json`;
 
+async function canAnswerFromBoard($: EngineInterface, card: SessionCard) {
+  return card.cliId ? $.fs.exists(questionMarkPathOf(card.cliId)) : false;
+}
+
 async function removeFile($: EngineInterface, path: string) {
   const removed = await $.process.run(["/bin/rm", "-f", path]);
   if (removed.exitCode !== 0)
@@ -846,8 +851,21 @@ function clearPending($: EngineInterface, id: string) {
   );
 }
 
+export async function markQuestionOpen($: EngineInterface) {
+  if (!host.selfCliId) await discoverHost($);
+  if (!host.selfCliId) return;
+  const path = questionMarkPathOf(host.selfCliId);
+  await makeParentDir($, path);
+  await $.fs.write(path, String(Date.now()));
+}
+
+export async function clearQuestionOpen($: EngineInterface) {
+  if (host.selfCliId) await removeFile($, questionMarkPathOf(host.selfCliId));
+}
+
 async function deliver($: EngineInterface, card: SessionCard, text: string) {
   if (card.cliId === host.selfCliId) {
+    if (answerOpenQuestion(text)) return true;
     await $.prompt.submit({ text, asUser: true });
     return true;
   }
@@ -867,8 +885,21 @@ async function sendAction(
   card: SessionCard,
   action: SessionAction,
 ) {
+  if (card.isAsking && !(await canAnswerFromBoard($, card))) {
+    $.ui.toast(
+      `"${card.title}" asked its question before the board could answer it, so it opened for you to answer there`,
+    );
+    await openSession($, card.id);
+    return;
+  }
   await markPending($, card.id);
   if (await deliver($, card, action.message)) return;
+  if (card.isAsking) {
+    await clearPending($, card.id);
+    $.ui.toast(`Could not answer "${card.title}", so it opened instead`);
+    await openSession($, card.id);
+    return;
+  }
   const isRelayed = await sendThroughApp($, card, action.message).catch(
     (error: unknown) => {
       log($, `could not relay to "${card.title}": ${String(error)}`);

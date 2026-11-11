@@ -58,6 +58,7 @@ export type TranscriptEnd = {
   lastText: string;
   question: string;
   options: SessionAction[];
+  isAsking?: boolean;
   uncommittedFiles: number;
   isWorkDirGone?: boolean;
 };

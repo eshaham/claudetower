@@ -3,12 +3,14 @@ import type { EngineInterface, Register } from "claude-code";
 import type { CardHitMessage } from "../types";
 import {
   checkInbox,
+  clearQuestionOpen,
   followOtherSessions,
   isPaneOpen,
   followBoard,
   leaseTick,
   load,
   markPanelAsked,
+  markQuestionOpen,
   noteClickLayerFailure,
   openPane,
   openSession,
@@ -175,7 +177,14 @@ export const register: Register = (on, options) => {
   );
 
   on("tool.call", { tool: "AskUserQuestion" }, async ($, e, next) => {
-    const outcome = await raceOpenQuestion(next(e));
+    await markQuestionOpen($).catch((error: unknown) =>
+      log($, `could not mark an open question: ${String(error)}`),
+    );
+    const outcome = await raceOpenQuestion(next(e)).finally(() =>
+      clearQuestionOpen($).catch((error: unknown) =>
+        log($, `could not clear an open question: ${String(error)}`),
+      ),
+    );
     if ("result" in outcome) return outcome.result;
     log($, "answered an open question with a choice made on the board");
     return {

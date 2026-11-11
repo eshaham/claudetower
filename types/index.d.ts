@@ -52,6 +52,7 @@ export type SessionCard = {
   uncommittedFiles: number;
   question: string;
   options: SessionAction[];
+  isAsking?: boolean;
   isRunning: boolean;
   isScheduled: boolean;
   ageMs: number;
