@@ -18,6 +18,7 @@ import {
   readNeedsSetup,
   setAutoFinish,
   setPaneOpen,
+  takeAutoFinishMessage,
   toggleAutoFinish,
   toggleCompose,
   toggleGroup,
@@ -171,6 +172,18 @@ export const register: Register = (on, options) => {
       result: JSON.stringify(await runRankingTool($, e), null, 2),
     }),
   );
+
+  on("session.receive", async ($, e, next) => {
+    const isTaken = await takeAutoFinishMessage($, e.text).catch(
+      (error: unknown) => {
+        log($, `could not check a received message: ${String(error)}`);
+        return false;
+      },
+    );
+    return isTaken
+      ? { consumed: "auto-finish message, submitted as the user's own" }
+      : next(e);
+  });
 
   on("ui.fault", async ($, e, next) => {
     await noteClickLayerFailure($, e.reason);

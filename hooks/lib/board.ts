@@ -24,6 +24,7 @@ import {
   STORE_KEYS,
   log,
   instanceKey,
+  discoverHost,
   findInstance,
   LEASE_EXPIRES_MS,
   LEASE_SETTLE_MS,
@@ -787,6 +788,23 @@ async function sendAction(
   await clearPending($, card.id);
   $.ui.toast(`"${card.title}" isn't running, so it opened instead`);
   await openSession($, card.id);
+}
+
+export async function takeAutoFinishMessage($: EngineInterface, text: string) {
+  if (!text.includes(AUTO_FINISH_ACTION.message)) return false;
+  if (!host.selfCliId) await discoverHost($);
+  if (!(await findInstance($))) return false;
+  const board = (await readJson($, boardPath())) as {
+    cards?: SessionCard[];
+  } | null;
+  const self = board?.cards?.find((card) => card.cliId === host.selfCliId);
+  if (!self || !(self.id in (await readAutoFinishMarks($)))) return false;
+  void $.prompt
+    .submit({ text: AUTO_FINISH_ACTION.message, asUser: true })
+    .catch((error: unknown) =>
+      log($, `could not submit the auto-finish message: ${String(error)}`),
+    );
+  return true;
 }
 
 export async function checkInbox($: EngineInterface) {
