@@ -58,6 +58,7 @@ export type SessionCard = {
   verdict: Verdict | null;
   isRereading: boolean;
   isAutoFinish: boolean;
+  childIds: string[];
   lane: LaneId;
   canArchive: boolean;
   isFinishing: boolean;

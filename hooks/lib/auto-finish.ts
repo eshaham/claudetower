@@ -31,6 +31,10 @@ export const isAutoFinishPaused = (
   card: Pick<SessionCard, "verdict" | "canArchive">,
 ) => card.verdict?.canFinishAlone === false && !card.canArchive;
 
+export const isWaitingOnChildren = (
+  card: Pick<SessionCard, "canArchive" | "childIds">,
+) => card.canArchive && card.childIds.length > 0;
+
 const isHandled = (nudge: Nudge | undefined, card: SessionCard, now: number) =>
   nudge?.forTurn === card.lastAt &&
   (nudge.isDelivered || now - nudge.at < NUDGE_RETRY_MS);
@@ -49,7 +53,7 @@ export const autoFinishStepOf = (
     isHandled(nudge, card, now)
   )
     return "wait";
-  if (card.canArchive) return "archive";
+  if (card.canArchive) return isWaitingOnChildren(card) ? "wait" : "archive";
   if (!card.verdict.canFinishAlone) return "wait";
   if (card.verdict.status === "waiting_on_others" && (nudge?.count ?? 0) > 0)
     return "wait";

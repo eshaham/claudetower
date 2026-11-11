@@ -64,6 +64,7 @@ export type TranscriptEnd = {
 export type Live = { s: SessionFile; end: TranscriptEnd };
 
 export type StartedSession = {
+  id: string;
   title: string;
   isArchived: boolean;
   hoursAgo: number;
@@ -305,6 +306,7 @@ const recordStartedSessions = (files: SessionFile[], now: number) => {
     startedFrom.set(parent, [
       ...(startedFrom.get(parent) ?? []),
       {
+        id: file.sessionId,
         title: file.title ?? "",
         isArchived: file.isArchived === true,
         hoursAgo: Math.round((now - (file.lastActivityAt ?? now)) / HOUR_MS),

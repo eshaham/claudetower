@@ -29,6 +29,8 @@ Turn it on with the switch next to a card's title, or type `/auto-finish` in the
 
 Each time an auto-finish session stops, its reading also says whether it could finish alone: everything left is work it can do with a standing go-ahead to commit, push, merge its own PR and archive, such as fixing checks or waiting for them. If so, the board moves it to **In flight** and sends it a message that hands it the go-ahead and points it to the `claudetower:auto-finish` skill, which comes with the plugin. If it needs a real decision, a credential, a human reviewer, or a step riskier than merging (a deploy, a migration, an infrastructure apply), it stays in its usual lane until you answer. Once it is finished, the board archives it.
 
+A session on auto-finish passes it on to the sessions it started, and it is archived only after all of them are. Until then its card reads **Auto-finish waiting on N started sessions**.
+
 The message counts as your consent to merge that session's PR. A session gets at most one message per turn and 12 in all, and none while it only waits on checks after its first, since Auto-fix wakes it from there; a message nobody picks up (the session isn't running) is tried again after 10 minutes.
 
 ## How it decides

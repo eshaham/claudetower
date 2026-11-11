@@ -8,6 +8,7 @@ import {
   NUDGE_RETRY_MS,
   autoFinishStepOf,
   isAutoFinishPaused,
+  isWaitingOnChildren,
   nudgeAfter,
 } from "../hooks/lib/auto-finish";
 import { classify } from "../hooks/lib/classify";
@@ -60,6 +61,7 @@ const cardOf = (overrides: Partial<CardFacts> = {}): SessionCard =>
       verdict: verdictOf(),
       isRereading: false,
       isAutoFinish: true,
+      childIds: [],
       ...overrides,
     },
     DEFAULT_RANKING,
@@ -187,5 +189,30 @@ describe("auto-finish paused", () => {
   it("is not paused when it can finish alone or has no verdict yet", () => {
     assert.equal(isAutoFinishPaused(cardOf()), false);
     assert.equal(isAutoFinishPaused(cardOf({ verdict: null })), false);
+  });
+});
+
+describe("auto-finish with started sessions", () => {
+  const finished = (childIds: string[]) =>
+    cardOf({
+      prs: [],
+      childIds,
+      verdict: verdictOf({
+        status: "done",
+        kind: null,
+        isFinished: true,
+        canFinishAlone: false,
+      }),
+    });
+
+  it("waits to archive while a started session is still open", () => {
+    const card = finished(["local_child"]);
+    assert.equal(isWaitingOnChildren(card), true);
+    assert.equal(isAutoFinishPaused(card), false);
+    assert.equal(autoFinishStepOf(card, undefined, NOW), "wait");
+  });
+
+  it("archives once every started session is archived", () => {
+    assert.equal(autoFinishStepOf(finished([]), undefined, NOW), "archive");
   });
 });

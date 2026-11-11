@@ -19,7 +19,7 @@ import {
   sendText,
   startAction,
 } from "../lib/board";
-import { isAutoFinishPaused } from "../lib/auto-finish";
+import { isAutoFinishPaused, isWaitingOnChildren } from "../lib/auto-finish";
 import {
   LANES,
   badgeOf,
@@ -263,6 +263,11 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
           (isAutoFinishPaused(card) ? (
             <Text dimColor weight="semibold">
               Auto-finish paused, needs you{" "}
+            </Text>
+          ) : isWaitingOnChildren(card) ? (
+            <Text color="claude" weight="semibold">
+              Auto-finish waiting on {card.childIds.length} started{" "}
+              {card.childIds.length === 1 ? "session" : "sessions"}{" "}
             </Text>
           ) : (
             <Text color="claude" weight="semibold">
