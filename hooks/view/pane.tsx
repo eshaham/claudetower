@@ -5,7 +5,6 @@ import {
   archiveSession,
   readCards,
   openSession,
-  readPreviewed,
   readComposing,
   readDraft,
   setDraft,
@@ -19,7 +18,6 @@ import {
   toggleGroup,
   sendText,
   startAction,
-  togglePreview,
 } from "../lib/board";
 import {
   LANES,
@@ -45,7 +43,6 @@ import { isOpenPr } from "../lib/enrich";
 import { loadRanking } from "../lib/ranking";
 import { SETUP_TITLE, setupButtons } from "./setup";
 import {
-  BUBBLE_BORDER,
   CHEVRON_SIZE,
   PENCIL_SIZE,
   PR_ICON_SIZE,
@@ -102,12 +99,9 @@ const composerRows = (text: string, width: number) => {
   return Math.min(COMPOSER_MAX_ROWS, Math.max(2, rows));
 };
 
-const hasPreview = (card: SessionCard) =>
-  card.lastAsk !== "" || card.lastReply !== "";
-
 export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
   const resolved = $.ui.resolve(e);
-  const { Box, Text, Button, Markdown } = resolved;
+  const { Box, Text, Button } = resolved;
   const Svg = "Svg" in resolved ? resolved.Svg : null;
   const Client =
     "Client" in resolved && (await areClickLayersHealthy($))
@@ -115,7 +109,6 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
       : null;
   const [
     list,
-    previewedId,
     pendingAt,
     composingId,
     draftText,
@@ -125,7 +118,6 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     autoPilotMarks,
   ] = await Promise.all([
     readCards($),
-    readPreviewed($),
     readPending($),
     readComposing($),
     readDraft($),
@@ -199,7 +191,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
             <Client
               key={`group-hit-${id}`}
               module="../card-hit.tsx"
-              props={{ id, canToggle: false, canCompose: false, isGroup: true }}
+              props={{ id, canCompose: false, isGroup: true }}
               width="100%"
               height="100%"
             />
@@ -325,29 +317,6 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     );
   };
 
-  const preview = (card: SessionCard) =>
-    previewedId === card.id && (
-      <Box flexDirection="column" marginTop={1} rowGap={1}>
-        {card.lastAsk !== "" && (
-          <Box flexDirection="column" alignItems="flex-end">
-            <Text dimColor size="caption">
-              You wrote
-              {card.lastAskAgoMs > 0 ? ` · ${ago(card.lastAskAgoMs)} ago` : ""}
-            </Text>
-            <Box
-              width="85%"
-              borderStyle="bold"
-              borderColor={BUBBLE_BORDER}
-              paddingX={2}
-            >
-              <Text wrap="wrap">{card.lastAsk}</Text>
-            </Box>
-          </Box>
-        )}
-        {card.lastReply !== "" && <Markdown text={card.lastReply} />}
-      </Box>
-    );
-
   const cardView = (card: SessionCard) => (
     <Box
       key={`card-${card.id}`}
@@ -357,7 +326,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
       paddingX={1}
     >
       <Box key={`body-${card.id}`} position="relative" flexDirection="column">
-        <Box paddingRight={12}>
+        <Box paddingRight={9}>
           {Client ? (
             <Text weight="semibold" wrap="wrap">
               {card.title}
@@ -383,7 +352,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
         {prLines(card)}
         {reason(card)}
         {canCompose(card) && (
-          <Box position="absolute" top={0} right={3}>
+          <Box position="absolute" top={0} right={0}>
             {Svg && Client ? (
               <Svg
                 source={pencil(composingId === card.id)}
@@ -403,7 +372,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
           </Box>
         )}
         {!card.isScheduled && (
-          <Box position="absolute" top={0} right={7}>
+          <Box position="absolute" top={0} right={4}>
             {Svg && Client ? (
               <Svg
                 source={autoPilotSwitch(isOnAutoPilot(card))}
@@ -426,26 +395,6 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
             )}
           </Box>
         )}
-        {hasPreview(card) && (
-          <Box position="absolute" top={0} right={0}>
-            {Svg && Client ? (
-              <Svg
-                source={chevron(previewedId === card.id)}
-                alt={previewedId === card.id ? "Collapse" : "Expand"}
-                width={CHEVRON_SIZE}
-                height={CHEVRON_SIZE}
-              />
-            ) : (
-              <Button
-                key={`toggle-${card.id}-fallback`}
-                plain
-                dimColor
-                label={previewedId === card.id ? "▾" : "▸"}
-                onPress={() => togglePreview($, card.id)}
-              />
-            )}
-          </Box>
-        )}
         {Client && (
           <Box position="absolute" top={0} left={0} right={0} bottom={0}>
             <Client
@@ -453,7 +402,6 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
               module="../card-hit.tsx"
               props={{
                 id: card.id,
-                canToggle: hasPreview(card),
                 canCompose: canCompose(card),
                 canAutoPilot: !card.isScheduled,
               }}
@@ -463,7 +411,6 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
           </Box>
         )}
       </Box>
-      {preview(card)}
       {actions(card)}
       {composingId === card.id && canCompose(card) && Input && (
         <Box marginTop={1} width="100%" flexDirection="column">
@@ -476,18 +423,6 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
             autoFocus
             onInput={(text) => setDraft($, text)}
             onSubmit={(text) => sendText($, card, text)}
-          />
-        </Box>
-      )}
-      {previewedId === card.id && (
-        <Box marginTop={1} flexDirection="row" justifyContent="center">
-          <Button
-            key={`collapse-${card.id}`}
-            plain
-            dimColor
-            hover={{ dimColor: false, underline: true }}
-            label="Collapse ▴"
-            onPress={() => togglePreview($, card.id)}
           />
         </Box>
       )}

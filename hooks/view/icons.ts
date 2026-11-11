@@ -2,7 +2,6 @@ import type { PrState } from "../../types";
 
 export const CHEVRON_SIZE = 20;
 export const PR_ICON_SIZE = 14;
-export const BUBBLE_BORDER = "#3d3d3a";
 
 const CHEVRON_COLOR = "#9a9893";
 
