@@ -56,6 +56,8 @@ import {
   chevron,
   pencil,
   prIcon,
+  spinner,
+  SPINNER_SIZE,
 } from "./icons";
 
 export const ago = (ms: number) => {
@@ -279,8 +281,11 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     ));
   };
 
+  const isAutoWorking = (card: SessionCard) =>
+    isOnAutoFinish(card) && card.isRunning;
+
   const autoDot = (card: SessionCard) =>
-    isOnAutoFinish(card) ? (
+    isOnAutoFinish(card) && !(Svg && isAutoWorking(card)) ? (
       <Text color={isAutoFinishPaused(card) ? "error" : "success"}>● </Text>
     ) : (
       ""
@@ -410,6 +415,14 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
           >
             {Svg ? (
               <Box flexDirection="row" columnGap={1} alignItems="center">
+                {isAutoWorking(card) && (
+                  <Svg
+                    source={spinner()}
+                    alt="Auto-finish is working"
+                    width={SPINNER_SIZE}
+                    height={SPINNER_SIZE}
+                  />
+                )}
                 {Client ? (
                   <Text dimColor={!isOnAutoFinish(card)}>
                     {autoDot(card)}
