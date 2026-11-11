@@ -208,7 +208,9 @@ async function promptOf(
       ? { question: end.question, options: end.options }
       : null,
     uncommittedFiles: end.uncommittedFiles,
-    sessionsStartedFromThis: startedFrom.get(s.sessionId) ?? [],
+    sessionsStartedFromThis: (startedFrom.get(s.sessionId) ?? []).map(
+      ({ title, isArchived, hoursAgo }) => ({ title, isArchived, hoursAgo }),
+    ),
     userAskedLast: end.prompt,
     sessionsLastWords: end.lastText,
     endedHoursAgo: Math.round((Date.now() - end.lastAt) / HOUR_MS),

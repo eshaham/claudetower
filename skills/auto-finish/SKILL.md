@@ -11,6 +11,7 @@ The user put this session on auto-finish in claudetower. That is their standing 
 2. Hand the rest to the app, on this session's PR:
    - `mcp__ccd_pr__set_monitor` with `auto_fix: true`, `address_comments: true`, `auto_archive_on_close: true` and the PR's `url`, so the app wakes this session on CI failures, merge conflicts and review comments, and archives it once the PR merges.
    - `mcp__ccd_pr__set_auto_merge` with `enabled: true`, so GitHub merges it once its checks pass. The auto-finish message is the user's explicit consent to this, even where their instructions otherwise require asking before a merge.
-3. End the turn. When a `<ci-monitor-event>` wakes you, handle it as Auto-fix asks.
+3. If this session started other sessions that are not archived yet (`mcp__ccd_session_mgmt__list_sessions` with `linked: true`), pass `auto_archive_on_close: false` instead. claudetower puts those sessions on auto-finish too and archives this one only after every one of them is archived. Where one of them is blocked on something you can answer from this session's context, send it the answer.
+4. End the turn. When a `<ci-monitor-event>` wakes you, handle it as Auto-fix asks.
 
 Stop and end the turn with one short, specific question instead, so claudetower shows it to the user, when the next step needs information, a credential, a real choice, a human reviewer, or anything beyond merging this PR (a deploy, a migration, an infrastructure change, deleting data).

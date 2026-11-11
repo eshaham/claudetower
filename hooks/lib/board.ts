@@ -57,6 +57,7 @@ import {
   loadLive,
   projectOf,
   sessionDirs,
+  startedFrom,
   ticketOf,
   titleOf,
   transcriptPath,
@@ -165,7 +166,17 @@ const enrich = (live: Live[], stores: Stores): Enriched[] => {
 
 const keyOf = (one: Enriched) => verdictKeyOf(one, one.context);
 
-const cardOf = (one: Enriched, now: number, stores: Stores): SessionCard => {
+const openChildIdsOf = (id: string, liveIds: Set<string>) =>
+  (startedFrom.get(id) ?? [])
+    .map((child) => child.id)
+    .filter((childId) => liveIds.has(childId));
+
+const cardOf = (
+  one: Enriched,
+  now: number,
+  stores: Stores,
+  liveIds: Set<string>,
+): SessionCard => {
   const { s, end, ticket } = one;
   const stored = stores.verdicts[s.sessionId];
   const current =
@@ -195,6 +206,7 @@ const cardOf = (one: Enriched, now: number, stores: Stores): SessionCard => {
       verdict: current ?? stored?.verdict ?? null,
       isRereading: end.isStopped && current === null,
       isAutoFinish: one.context.isAutoFinish,
+      childIds: openChildIdsOf(s.sessionId, liveIds),
     },
     stores.ranking,
   );
@@ -219,8 +231,9 @@ async function prunePending(
 async function build($: EngineInterface, live: Live[], now: number) {
   const stores = await readStores($);
   const enriched = enrich(live, stores);
+  const liveIds = new Set(live.map(({ s }) => s.sessionId));
   const built = enriched
-    .map((one) => cardOf(one, now, stores))
+    .map((one) => cardOf(one, now, stores, liveIds))
     .sort((a, b) => b.score - a.score);
   await update($, cards, () => built);
   await prunePending($, built, now);
@@ -562,8 +575,33 @@ async function takeAutoFinishStep(
   return isArchived || deliver($, card, ARCHIVE_ACTION.message);
 }
 
+async function passAutoFinishToChildren(
+  $: EngineInterface,
+  built: SessionCard[],
+  marks: AutoFinishMarks,
+) {
+  const now = Date.now();
+  const children = built
+    .filter((card) => card.id in marks)
+    .flatMap((card) => card.childIds)
+    .filter((id) => !(id in marks));
+  if (children.length === 0) return marks;
+  log($, `auto-finish: passing on to ${children.length} child sessions`);
+  const passed = {
+    ...marks,
+    ...Object.fromEntries(children.map((id) => [id, now])),
+  };
+  await $.store.set(instanceKey(STORE_KEYS.autoFinish), passed);
+  await update($, autoFinish, () => passed);
+  return passed;
+}
+
 async function driveAutoFinish($: EngineInterface, built: SessionCard[]) {
-  const marks = await readAutoFinishMarks($);
+  const marks = await passAutoFinishToChildren(
+    $,
+    built,
+    await readAutoFinishMarks($),
+  );
   const marked = Object.keys(marks);
   if (marked.length === 0) return;
   const shown = new Set(built.map((card) => card.id));
