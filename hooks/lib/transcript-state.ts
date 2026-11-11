@@ -54,6 +54,7 @@ export type TranscriptReading = {
   lastText: string;
   question: string;
   options: SessionAction[];
+  isAsking: boolean;
 };
 
 export type Limits = {
@@ -285,6 +286,7 @@ export function readingOf(
     lastText: state.turnText,
     question: state.question,
     options: state.options,
+    isAsking: last?.isAsking === true,
   };
 }
 

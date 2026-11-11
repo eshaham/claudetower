@@ -1,3 +1,8 @@
+import { host } from "./config";
+
+export const questionMarkPathOf = (cliId: string) =>
+  `${host.home}/.claude/claudetower/questions/${cliId}`;
+
 type Question = { question: string };
 
 let answerWaiting: ((text: string) => void) | null = null;
