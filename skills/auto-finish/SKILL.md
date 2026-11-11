@@ -17,6 +17,7 @@ Ask only when the answer changes what you do next. Never ask whether to keep wai
 2. Hand the rest to the app, on this session's PR:
    - `mcp__ccd_pr__set_monitor` with `auto_fix: true`, `address_comments: true`, `auto_archive_on_close: true` and the PR's `url`, so the app wakes this session on CI failures, merge conflicts and review comments, and archives it once the PR merges.
    - `mcp__ccd_pr__set_auto_merge` with `enabled: true`, so GitHub merges it once its checks pass. The auto-finish message is the user's explicit consent to this, even where their instructions otherwise require asking before a merge.
+   - If the repository doesn't allow auto-merge (the call fails or GitHub refuses it), merge the PR yourself instead, under the same consent: watch its checks in the background (`gh pr checks <number> --watch`), and once they pass and it has the approvals it needs, merge it with `gh pr merge` the way the repository merges (squash unless it uses another method). If it still waits for a review, end the turn and merge when you're next woken and it is ready.
 3. If this session started other sessions that are not archived yet (`mcp__ccd_session_mgmt__list_sessions` with `linked: true`), pass `auto_archive_on_close: false` instead. claudetower puts those sessions on auto-finish too and archives this one only after every one of them is archived. Where one of them is blocked on something you can answer from this session's context, send it the answer.
 4. End the turn. When a `<ci-monitor-event>` wakes you, handle it as Auto-fix asks.
 

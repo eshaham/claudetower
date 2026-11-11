@@ -6,6 +6,7 @@ import type { AutoFinishMarks, Nudge, Nudges } from "./auto-finish";
 import {
   AUTO_FINISH_ACTION,
   autoFinishStepOf,
+  isAutoFinishOn,
   nudgeAfter,
 } from "./auto-finish";
 import { classify } from "./classify";
@@ -36,6 +37,7 @@ import {
 import type { PrStore, TicketStore } from "./enrich";
 import {
   isOpenPr,
+  isSetUpInAppOf,
   prBadgesOf,
   readPrs,
   readTickets,
@@ -161,6 +163,7 @@ const enrich = (live: Live[], stores: Stores): Enriched[] => {
       .map((pr) => `#${pr.number} ${pr.state}`);
     const ticket = ticketOf(one.s, ticketPatternOf(project));
     const info = stores.tickets[ticket];
+    const isSetUpInApp = isSetUpInAppOf(one.s, stores.prs);
     return {
       ...one,
       ticket,
@@ -171,7 +174,12 @@ const enrich = (live: Live[], stores: Stores): Enriched[] => {
         ticket: ticket && info ? { ...info, id: ticket } : null,
         ranking: stores.ranking,
         rankingFingerprint,
-        isAutoFinish: one.s.sessionId in stores.autoFinish,
+        isAutoFinish: isAutoFinishOn(
+          stores.autoFinish,
+          one.s.sessionId,
+          isSetUpInApp,
+        ),
+        isSetUpInApp,
       },
     };
   });
@@ -222,6 +230,7 @@ const cardOf = (
       verdict,
       isRereading: end.isStopped && current === null,
       isAutoFinish: one.context.isAutoFinish,
+      isSetUpInApp: one.context.isSetUpInApp,
       childIds: openChildIdsOf(s.sessionId, liveIds),
     },
     stores.ranking,
@@ -587,12 +596,13 @@ export async function setAutoFinish(
   hold?: Nudge,
 ) {
   await forgetAutoFinish($, new Set([id]));
-  if (isOn) {
-    if (hold) await writeNudge($, id, hold);
-    const marks = { ...(await readAutoFinishMarks($)), [id]: Date.now() };
-    await $.store.set(instanceKey(STORE_KEYS.autoFinish), marks);
-    await update($, autoFinish, () => marks);
-  }
+  if (isOn && hold) await writeNudge($, id, hold);
+  const marks = {
+    ...(await readAutoFinishMarks($)),
+    [id]: isOn ? Date.now() : -Date.now(),
+  };
+  await $.store.set(instanceKey(STORE_KEYS.autoFinish), marks);
+  await update($, autoFinish, () => marks);
   void load($).catch((error: unknown) =>
     log($, `could not refresh after auto-finish changed: ${String(error)}`),
   );
@@ -618,9 +628,19 @@ async function kickOff($: EngineInterface, card: SessionCard, hold: Nudge) {
 }
 
 export async function toggleAutoFinish($: EngineInterface, id: string) {
-  const isOn = !(id in (await readAutoFinishMarks($)));
   const card = (await readCards($)).find((one) => one.id === id);
-  if (!isOn || !card || card.cliId === host.selfCliId || card.isScheduled) {
+  const isOn = !isAutoFinishOn(
+    await readAutoFinishMarks($),
+    id,
+    card?.isSetUpInApp === true,
+  );
+  if (
+    !isOn ||
+    !card ||
+    card.cliId === host.selfCliId ||
+    card.isScheduled ||
+    card.isSetUpInApp
+  ) {
     await setAutoFinish($, id, isOn);
     return;
   }
@@ -698,7 +718,7 @@ async function passAutoFinishToChildren(
 ) {
   const now = Date.now();
   const children = built
-    .filter((card) => card.id in marks)
+    .filter((card) => card.isAutoFinish)
     .flatMap((card) => card.childIds)
     .filter((id) => !(id in marks));
   if (children.length === 0) return marks;
@@ -719,7 +739,7 @@ async function driveAutoFinish($: EngineInterface, built: SessionCard[]) {
     await readAutoFinishMarks($),
   );
   const marked = Object.keys(marks);
-  if (marked.length === 0) return;
+  if (marked.length === 0 && !built.some((card) => card.isAutoFinish)) return;
   const shown = new Set(built.map((card) => card.id));
   const gone = new Set(marked.filter((id) => !shown.has(id)));
   if (built.length > 0 && gone.size > 0) await forgetAutoFinish($, gone);

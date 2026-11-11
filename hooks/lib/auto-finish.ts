@@ -1,5 +1,6 @@
 import type { SessionAction, SessionCard } from "../../types";
 import { MINUTE_MS } from "./config";
+import { isOpenPr } from "./enrich";
 
 export type AutoFinishMarks = Record<string, number>;
 
@@ -22,8 +23,20 @@ export const NUDGE_RETRY_MS = 10 * MINUTE_MS;
 export const AUTO_FINISH_ACTION: SessionAction = {
   label: "Auto-finish",
   message:
-    "Auto-finish (claudetower): take this session the rest of the way on your own with the claudetower:auto-finish skill. Start by telling me in one line that auto-finish is on and what is left. If you need my answer on anything that changes what you do next, ask me again with the AskUserQuestion tool, even if you asked before. Don't ask me whether to keep waiting: if all that is left is CI or a review that is already requested, turn on auto-merge if it isn't on yet, say in one line what it waits on, and end the turn. Otherwise finish and verify the work, open or update the PR, then turn on Auto-fix, auto-merge and archive-on-merge for it. I consent to merging this session's PR once its checks pass. Stop and ask me only for what you cannot decide or do yourself.",
+    "Auto-finish (claudetower): take this session the rest of the way on your own with the claudetower:auto-finish skill. Start by telling me in one line that auto-finish is on and what is left. If you need my answer on anything that changes what you do next, ask me again with the AskUserQuestion tool, even if you asked before. Don't ask me whether to keep waiting: if all that is left is CI or a review that is already requested, turn on auto-merge if it isn't on yet, say in one line what it waits on, and end the turn. Otherwise finish and verify the work, open or update the PR, then turn on Auto-fix, auto-merge and archive-on-merge for it. If the repository doesn't allow auto-merge, merge it yourself once its checks pass and it has the approvals it needs. I consent to merging this session's PR once its checks pass. Stop and ask me only for what you cannot decide or do yourself.",
 };
+
+export const isMarkedOn = (marks: AutoFinishMarks, id: string) =>
+  (marks[id] ?? 0) > 0;
+
+export const isAutoFinishOn = (
+  marks: AutoFinishMarks,
+  id: string,
+  isSetUpInApp: boolean,
+) => (id in marks ? isMarkedOn(marks, id) : isSetUpInApp);
+
+export const hasEndedPrs = (card: Pick<SessionCard, "prs">) =>
+  card.prs.length > 0 && card.prs.every((pr) => !isOpenPr(pr.state));
 
 export const isAutoFinishing = (
   card: Pick<SessionCard, "isAutoFinish" | "verdict">,
@@ -62,9 +75,9 @@ export const autoFinishStepOf = (
     isHandled(nudge, card, now)
   )
     return "wait";
-  if (card.canArchive && !isWaitingOnChildren(card))
+  if (card.canArchive && hasEndedPrs(card) && !isWaitingOnChildren(card))
     return nudge?.hasTriedArchive ? "wait" : "archive";
-  if (!nudge?.hasStarted) return "nudge";
+  if (!nudge?.hasStarted && !card.isSetUpInApp) return "nudge";
   if (card.isRereading || card.verdict === null || card.canArchive)
     return "wait";
   if (!card.verdict.canFinishAlone) return "wait";

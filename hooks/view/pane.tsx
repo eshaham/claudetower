@@ -19,7 +19,7 @@ import {
   sendText,
   startAction,
 } from "../lib/board";
-import { isAutoFinishPaused } from "../lib/auto-finish";
+import { isAutoFinishOn, isAutoFinishPaused } from "../lib/auto-finish";
 import type { Places } from "../lib/hold";
 import { holdPlaces, placesOf } from "../lib/hold";
 import {
@@ -136,7 +136,8 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
       ? resolved.Client
       : null;
   const Input = "Input" in resolved ? resolved.Input : null;
-  const isOnAutoFinish = (card: SessionCard) => card.id in autoFinishMarks;
+  const isOnAutoFinish = (card: SessionCard) =>
+    isAutoFinishOn(autoFinishMarks, card.id, card.isSetUpInApp === true);
   const isProcessing = (card: SessionCard) =>
     card.isRunning || (pendingAt[card.id] ?? 0) > card.lastAt;
   const canCompose = (card: SessionCard) =>
@@ -151,7 +152,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     [
       composingId,
       ...Object.entries(autoFinishMarks)
-        .filter(([, at]) => now - at < HOLD_MS)
+        .filter(([, at]) => at > 0 && now - at < HOLD_MS)
         .map(([id]) => id),
     ].filter(Boolean),
   );

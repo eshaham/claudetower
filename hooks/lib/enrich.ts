@@ -169,7 +169,7 @@ async function lookUpPr($: EngineInterface, pr: SessionPr) {
       "--repo",
       pr.repo ?? "",
       "--json",
-      "state,isDraft,additions,deletions,statusCheckRollup",
+      "state,isDraft,additions,deletions,statusCheckRollup,autoMergeRequest",
     ],
     { timeoutMs: GH_TIMEOUT_MS },
   );
@@ -183,6 +183,7 @@ async function lookUpPr($: EngineInterface, pr: SessionPr) {
     additions?: number;
     deletions?: number;
     statusCheckRollup?: CheckRun[];
+    autoMergeRequest?: unknown;
   };
   const state = prStateOf(data.state, data.isDraft);
   const checks = isOpenPr(state) ? (data.statusCheckRollup ?? []) : [];
@@ -195,6 +196,7 @@ async function lookUpPr($: EngineInterface, pr: SessionPr) {
     state,
     additions: data.additions ?? 0,
     deletions: data.deletions ?? 0,
+    isAutoMerge: Boolean(data.autoMergeRequest),
     failing: checks.filter((check) => has(check, FAILED)).length,
     pending: checks.filter(
       (check) => !has(check, FAILED) && has(check, PENDING),
@@ -250,6 +252,23 @@ export async function refreshPrs($: EngineInterface, live: Live[]) {
     ...Object.fromEntries(found.filter((entry) => entry !== null)),
   });
 }
+
+export const isSetUpInAppOf = (
+  session: { autoArchiveOnPrClose?: boolean; prs?: SessionPr[] },
+  known: PrStore,
+) => {
+  const open = (session.prs ?? [])
+    .filter((pr) => pr.prNumber)
+    .map((pr) => ({ pr, badge: known[prKey(pr)] }))
+    .filter(({ badge }) => badge && isOpenPr(badge.state));
+  return (
+    session.autoArchiveOnPrClose === true &&
+    open.length > 0 &&
+    open.every(
+      ({ pr, badge }) => pr.autoFix === true && badge?.isAutoMerge === true,
+    )
+  );
+};
 
 export const prBadgesOf = (prs: SessionPr[] = [], known: PrStore): PrBadge[] =>
   prs
