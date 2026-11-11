@@ -39,6 +39,7 @@ import {
   RANKING_TOOL_SPEC,
   runRankingTool,
 } from "./lib/ranking-tool";
+import { answersOf, raceOpenQuestion } from "./lib/open-question";
 import { renderAbovePrompt } from "./view/above-prompt";
 import { renderPane } from "./view/pane";
 import { renderSetupBand } from "./view/setup";
@@ -172,6 +173,18 @@ export const register: Register = (on, options) => {
       result: JSON.stringify(await runRankingTool($, e), null, 2),
     }),
   );
+
+  on("tool.call", { tool: "AskUserQuestion" }, async ($, e, next) => {
+    const outcome = await raceOpenQuestion(next(e));
+    if ("result" in outcome) return outcome.result;
+    log($, "answered an open question with a choice made on the board");
+    return {
+      result: {
+        questions: e.questions,
+        answers: answersOf(e.questions, outcome.answer),
+      },
+    };
+  });
 
   on("session.receive", async ($, e, next) => {
     const isTaken = await takeRelayedMessage($, e.text).catch(
