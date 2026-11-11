@@ -152,7 +152,7 @@ export type VerdictContext = {
   ticket: (TicketInfo & { id: string }) | null;
   ranking: Ranking;
   rankingFingerprint: string;
-  isAutoPilot: boolean;
+  isAutoFinish: boolean;
 };
 
 export const verdictKeyOf = ({ s, end }: Live, context: VerdictContext) =>
@@ -164,7 +164,7 @@ export const verdictKeyOf = ({ s, end }: Live, context: VerdictContext) =>
     isRun(s)
       ? "run"
       : `ticket${context.ticket ? `${context.ticket.priority}${context.ticket.isOpen ? "o" : "c"}` : ""}:rank${context.rankingFingerprint}`,
-    ...(context.isAutoPilot ? ["auto"] : []),
+    ...(context.isAutoFinish ? ["auto"] : []),
   ].join(":");
 
 export async function readVerdicts($: EngineInterface) {

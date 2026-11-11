@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { SessionCard, Verdict } from "../types";
-import type { Nudge } from "../hooks/lib/auto-pilot";
+import type { Nudge } from "../hooks/lib/auto-finish";
 import {
   MAX_NUDGES,
   NUDGE_RETRY_MS,
-  autoPilotStepOf,
-  isAutoPilotPaused,
+  autoFinishStepOf,
+  isAutoFinishPaused,
   nudgeAfter,
-} from "../hooks/lib/auto-pilot";
+} from "../hooks/lib/auto-finish";
 import { classify } from "../hooks/lib/classify";
 import type { CardFacts } from "../hooks/lib/classify";
 import { DEFAULT_RANKING } from "../hooks/lib/ranking";
@@ -59,7 +59,7 @@ const cardOf = (overrides: Partial<CardFacts> = {}): SessionCard =>
       lastAt: TURN,
       verdict: verdictOf(),
       isRereading: false,
-      isAutoPilot: true,
+      isAutoFinish: true,
       ...overrides,
     },
     DEFAULT_RANKING,
@@ -73,52 +73,52 @@ const nudge = (overrides: Partial<Nudge> = {}): Nudge => ({
   ...overrides,
 });
 
-describe("auto-pilot steps", () => {
-  it("nudges an idle auto-pilot session that can finish alone", () => {
-    assert.equal(autoPilotStepOf(cardOf(), undefined, NOW), "nudge");
+describe("auto-finish steps", () => {
+  it("nudges an idle auto-finish session that can finish alone", () => {
+    assert.equal(autoFinishStepOf(cardOf(), undefined, NOW), "nudge");
   });
 
-  it("leaves sessions that are not on auto-pilot alone", () => {
+  it("leaves sessions that are not on auto-finish alone", () => {
     assert.equal(
-      autoPilotStepOf(cardOf({ isAutoPilot: false }), undefined, NOW),
+      autoFinishStepOf(cardOf({ isAutoFinish: false }), undefined, NOW),
       "wait",
     );
   });
 
   it("waits while the session runs, is being read, or has no reading", () => {
     assert.equal(
-      autoPilotStepOf(cardOf({ isRunning: true }), undefined, NOW),
+      autoFinishStepOf(cardOf({ isRunning: true }), undefined, NOW),
       "wait",
     );
     assert.equal(
-      autoPilotStepOf(cardOf({ isRereading: true }), undefined, NOW),
+      autoFinishStepOf(cardOf({ isRereading: true }), undefined, NOW),
       "wait",
     );
     assert.equal(
-      autoPilotStepOf(cardOf({ verdict: null }), undefined, NOW),
+      autoFinishStepOf(cardOf({ verdict: null }), undefined, NOW),
       "wait",
     );
   });
 
   it("waits when the session needs the user", () => {
     const card = cardOf({ verdict: verdictOf({ canFinishAlone: false }) });
-    assert.equal(autoPilotStepOf(card, undefined, NOW), "wait");
+    assert.equal(autoFinishStepOf(card, undefined, NOW), "wait");
     assert.equal(card.lane, "answer");
   });
 
   it("nudges once per turn", () => {
-    assert.equal(autoPilotStepOf(cardOf(), nudge(), NOW), "wait");
+    assert.equal(autoFinishStepOf(cardOf(), nudge(), NOW), "wait");
     assert.equal(
-      autoPilotStepOf(cardOf(), nudge({ forTurn: TURN - 1 }), NOW),
+      autoFinishStepOf(cardOf(), nudge({ forTurn: TURN - 1 }), NOW),
       "nudge",
     );
   });
 
   it("retries a nudge the session did not pick up, after a while", () => {
     const missed = nudge({ isDelivered: false });
-    assert.equal(autoPilotStepOf(cardOf(), missed, NOW), "wait");
+    assert.equal(autoFinishStepOf(cardOf(), missed, NOW), "wait");
     assert.equal(
-      autoPilotStepOf(cardOf(), missed, NOW + NUDGE_RETRY_MS),
+      autoFinishStepOf(cardOf(), missed, NOW + NUDGE_RETRY_MS),
       "nudge",
     );
   });
@@ -127,19 +127,19 @@ describe("auto-pilot steps", () => {
     const waiting = cardOf({
       verdict: verdictOf({ status: "waiting_on_others", kind: null }),
     });
-    assert.equal(autoPilotStepOf(waiting, undefined, NOW), "nudge");
+    assert.equal(autoFinishStepOf(waiting, undefined, NOW), "nudge");
     assert.equal(
-      autoPilotStepOf(waiting, nudge({ forTurn: TURN - 1 }), NOW),
+      autoFinishStepOf(waiting, nudge({ forTurn: TURN - 1 }), NOW),
       "wait",
     );
   });
 
   it("stops nudging after too many turns", () => {
     const many = nudge({ forTurn: TURN - 1, count: MAX_NUDGES });
-    assert.equal(autoPilotStepOf(cardOf(), many, NOW), "wait");
+    assert.equal(autoFinishStepOf(cardOf(), many, NOW), "wait");
   });
 
-  it("archives a finished auto-pilot session", () => {
+  it("archives a finished auto-finish session", () => {
     const card = cardOf({
       prs: [],
       verdict: verdictOf({
@@ -150,7 +150,7 @@ describe("auto-pilot steps", () => {
       }),
     });
     assert.equal(card.canArchive, true);
-    assert.equal(autoPilotStepOf(card, undefined, NOW), "archive");
+    assert.equal(autoFinishStepOf(card, undefined, NOW), "archive");
   });
 
   it("counts a new turn's nudge but not a retry", () => {
@@ -163,29 +163,29 @@ describe("auto-pilot steps", () => {
   });
 });
 
-describe("auto-pilot cards", () => {
+describe("auto-finish cards", () => {
   it("shows a session finishing on its own as in flight, not in Finish", () => {
     const card = cardOf();
     assert.equal(card.lane, "in-flight");
     assert.equal(card.isFinishing, false);
   });
 
-  it("keeps the usual lane when auto-pilot is off", () => {
-    const card = cardOf({ isAutoPilot: false });
+  it("keeps the usual lane when auto-finish is off", () => {
+    const card = cardOf({ isAutoFinish: false });
     assert.equal(card.lane, "answer");
     assert.equal(card.isFinishing, true);
   });
 });
 
-describe("auto-pilot paused", () => {
+describe("auto-finish paused", () => {
   it("is paused when the session cannot finish alone", () => {
     const card = cardOf({ verdict: verdictOf({ canFinishAlone: false }) });
-    assert.equal(isAutoPilotPaused(card), true);
-    assert.equal(autoPilotStepOf(card, undefined, NOW), "wait");
+    assert.equal(isAutoFinishPaused(card), true);
+    assert.equal(autoFinishStepOf(card, undefined, NOW), "wait");
   });
 
   it("is not paused when it can finish alone or has no verdict yet", () => {
-    assert.equal(isAutoPilotPaused(cardOf()), false);
-    assert.equal(isAutoPilotPaused(cardOf({ verdict: null })), false);
+    assert.equal(isAutoFinishPaused(cardOf()), false);
+    assert.equal(isAutoFinishPaused(cardOf({ verdict: null })), false);
   });
 });

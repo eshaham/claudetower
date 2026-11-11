@@ -5,12 +5,12 @@ import type { CardHitMessage } from "../types";
 type Props = {
   id: string;
   canCompose: boolean;
-  canAutoPilot?: boolean;
+  canAutoFinish?: boolean;
   isGroup?: boolean;
 };
 
 const COMPOSE_COLUMNS = 4;
-const AUTO_PILOT_COLUMNS = 9;
+const AUTO_FINISH_COLUMNS = 9;
 const CORNER_ROWS = 2;
 
 const zoneOf = (
@@ -24,11 +24,11 @@ const zoneOf = (
   if (y >= CORNER_ROWS) return "open";
   if (current.canCompose && fromRight <= COMPOSE_COLUMNS) return "compose";
   if (
-    current.canAutoPilot &&
+    current.canAutoFinish &&
     fromRight > COMPOSE_COLUMNS &&
-    fromRight <= COMPOSE_COLUMNS + AUTO_PILOT_COLUMNS
+    fromRight <= COMPOSE_COLUMNS + AUTO_FINISH_COLUMNS
   )
-    return "auto-pilot";
+    return "auto-finish";
   return "open";
 };
 
@@ -52,7 +52,7 @@ const CardHit: ClientModule<Props, Props> = (props, surface) => {
   if (
     previous?.id !== props.id ||
     previous.canCompose !== props.canCompose ||
-    previous.canAutoPilot !== props.canAutoPilot ||
+    previous.canAutoFinish !== props.canAutoFinish ||
     previous.isGroup !== props.isGroup
   )
     surface.setState(props);
