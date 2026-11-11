@@ -125,6 +125,17 @@ describe("auto-pilot steps", () => {
     );
   });
 
+  it("leaves a nudged session that only waits on its checks to Auto-fix", () => {
+    const waiting = cardOf({
+      verdict: verdictOf({ status: "waiting_on_others", kind: null }),
+    });
+    assert.equal(autoPilotStepOf(waiting, undefined, NOW), "nudge");
+    assert.equal(
+      autoPilotStepOf(waiting, nudge({ forTurn: TURN - 1 }), NOW),
+      "wait",
+    );
+  });
+
   it("stops nudging after too many turns", () => {
     const many = nudge({ forTurn: TURN - 1, count: MAX_NUDGES });
     assert.equal(autoPilotStepOf(cardOf(), many, NOW), "wait");

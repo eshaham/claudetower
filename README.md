@@ -23,13 +23,13 @@ Clicking a card opens that session.
 
 ## Auto-pilot
 
-Put a session on auto-pilot and it finishes on its own: it completes the work, opens its PR, waits for checks, merges, and archives itself, reaching out to you only when it needs something.
+Put a session on auto-pilot and it finishes on its own: it completes the work, opens its PR, and turns on the app's Auto-fix, GitHub auto-merge and archive-on-merge for it, reaching out to you only when it needs something.
 
 Turn it on from a card (expand it and click **Auto-pilot: off**), or type `/auto-pilot` in the session itself (`/auto-pilot on`, `/auto-pilot off`, or bare to toggle). The card then shows **Auto-pilot**.
 
 Each time an auto-pilot session stops, its reading also says whether it could finish alone: everything left is work it can do with a standing go-ahead to commit, push, merge its own PR and archive, such as fixing checks or waiting for them. If so, the board moves it to **In flight** and sends it a message that hands it the go-ahead and points it to the `claudetower:auto-pilot` skill, which comes with the plugin. If it needs a real decision, a credential, a human reviewer, or a step riskier than merging (a deploy, a migration, an infrastructure apply), it stays in its usual lane until you answer. Once it is finished, the board archives it.
 
-The message counts as your consent to merge that session's PR. A session gets at most one message per turn and 12 in all; a message nobody picks up (the session isn't running) is tried again after 10 minutes.
+The message counts as your consent to merge that session's PR. A session gets at most one message per turn and 12 in all, and none while it only waits on checks after its first, since Auto-fix wakes it from there; a message nobody picks up (the session isn't running) is tried again after 10 minutes.
 
 ## How it decides
 
