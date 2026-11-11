@@ -9,8 +9,10 @@ import {
   splitChunk,
 } from "../hooks/lib/transcript-state";
 import {
+  answerLine,
   lastPromptLine,
   limits,
+  questionLine,
   promptLine,
   replyLine,
   toolCallLine,
@@ -35,6 +37,31 @@ const transcript = [
 const readAll = (text: string) => applyText(emptyState(), text, limits);
 
 describe("transcript state", () => {
+  it("shows a question until the user answers it", () => {
+    const asked = [promptLine("Go", 1), questionLine(2, "call-1")].join("\n");
+    const waiting = readingOf(readAll(`${asked}\n`), NOW, NOW, limits);
+    assert.equal(waiting.question, "Which one?");
+    assert.equal(waiting.options.length, 2);
+    const answered = [
+      asked,
+      answerLine(3, "call-1"),
+      replyLine("Done.", 4),
+    ].join("\n");
+    const done = readingOf(readAll(`${answered}\n`), NOW, NOW, limits);
+    assert.equal(done.question, "");
+    assert.deepEqual(done.options, []);
+  });
+
+  it("keeps a question when a different tool's result comes back", () => {
+    const text = [
+      promptLine("Go", 1),
+      questionLine(2, "call-1"),
+      answerLine(3, "other"),
+    ].join("\n");
+    const reading = readingOf(readAll(`${text}\n`), NOW, NOW, limits);
+    assert.equal(reading.question, "Which one?");
+  });
+
   it("reads the last turn, its prompt and the offered actions", () => {
     const reading = readingOf(readAll(`${transcript}\n`), NOW, NOW, limits);
     assert.equal(reading.prompt, "Fix the bug");

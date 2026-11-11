@@ -70,6 +70,7 @@ export type StartedSession = {
   hoursAgo: number;
 };
 
+const IGNORED_STATUS = new Set(["?? node_modules", "?? node_modules/"]);
 const sessionFiles = new Map<string, { mtimeMs: number; file: SessionFile }>();
 const transcripts = new Map<string, TranscriptCache>();
 export const startedFrom = new Map<string, StartedSession[]>();
@@ -166,7 +167,9 @@ async function countUncommitted($: EngineInterface, cwd: string) {
     log($, `git status failed in ${cwd}: ${status.stderr.trim()}`);
     return 0;
   }
-  const count = status.stdout.split("\n").filter(Boolean).length;
+  const count = status.stdout
+    .split("\n")
+    .filter((line) => line !== "" && !IGNORED_STATUS.has(line.trim())).length;
   worktreeStatuses.set(cwd, {
     headMtimeMs,
     indexMtimeMs: await mtimeOf($, `${gitDir}/index`),
