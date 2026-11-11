@@ -52,6 +52,15 @@ describe("transcript state", () => {
     assert.deepEqual(done.options, []);
   });
 
+  it("counts a session asking a question as stopped, not working", () => {
+    const asked = [promptLine("Go", 1), questionLine(2, "call-1")].join("\n");
+    const waiting = readingOf(readAll(`${asked}\n`), NOW, NOW, limits);
+    assert.equal(waiting.isStopped, true);
+    const working = [promptLine("Go", 1), toolCallLine(2)].join("\n");
+    const running = readingOf(readAll(`${working}\n`), NOW, NOW, limits);
+    assert.equal(running.isStopped, false);
+  });
+
   it("keeps a question when a different tool's result comes back", () => {
     const text = [
       promptLine("Go", 1),

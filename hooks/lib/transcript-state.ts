@@ -34,6 +34,7 @@ export type TranscriptState = {
     type: string;
     at: number;
     isWaitingOnTool: boolean;
+    isAsking?: boolean;
     stopReason: string | null | undefined;
   } | null;
   turnText: string;
@@ -142,6 +143,16 @@ const suggestionOf = (line: TranscriptLine) => {
   };
 };
 
+const isAskingCall = (line: TranscriptLine) => {
+  const content = line.message?.content;
+  return (
+    Array.isArray(content) &&
+    content.some(
+      (block) => block.type === "tool_use" && block.name === QUESTION_TOOL,
+    )
+  );
+};
+
 const isAnswered = (line: TranscriptLine, callId: string | undefined) => {
   const content = line.message?.content;
   return (
@@ -168,6 +179,7 @@ function applyLine(
     type: line.type,
     at: timeOf(line),
     isWaitingOnTool,
+    isAsking: isWaitingOnTool && isAskingCall(line),
     stopReason: line.message?.stop_reason,
   };
   if (isPrompt(line))
@@ -257,8 +269,8 @@ export function readingOf(
   const last = state.last;
   const endedCleanly =
     last?.type === "assistant" &&
-    !last.isWaitingOnTool &&
-    last.stopReason !== null;
+    (last.isAsking === true ||
+      (!last.isWaitingOnTool && last.stopReason !== null));
   const grace = last?.isWaitingOnTool
     ? limits.toolGraceMs
     : limits.runningGraceMs;
