@@ -254,6 +254,13 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     ));
   };
 
+  const autoDot = (card: SessionCard) =>
+    isOnAutoFinish(card) ? (
+      <Text color={isAutoFinishPaused(card) ? "error" : "success"}>● </Text>
+    ) : (
+      ""
+    );
+
   const reason = (card: SessionCard) => {
     const badge = badgeOf(card);
     const band = card.isRunning ? null : card.band;
@@ -376,29 +383,37 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
             columnGap={1}
             alignItems="center"
           >
-            {Svg && Client && (
-              <Text dimColor={!isOnAutoFinish(card)}>
-                {isOnAutoFinish(card) && (
-                  <Text color={isAutoFinishPaused(card) ? "error" : "success"}>
-                    ●{" "}
+            {Svg ? (
+              <Box flexDirection="row" columnGap={1} alignItems="center">
+                {Client ? (
+                  <Text dimColor={!isOnAutoFinish(card)}>
+                    {autoDot(card)}
+                    Auto
                   </Text>
+                ) : (
+                  <Button
+                    key={`auto-finish-${card.id}-fallback`}
+                    plain
+                    dimColor={!isOnAutoFinish(card)}
+                    onPress={() => toggleAutoFinish($, card.id)}
+                  >
+                    {autoDot(card)}
+                    Auto
+                  </Button>
                 )}
-                Auto
-              </Text>
-            )}
-            {Svg && Client ? (
-              <Svg
-                source={autoFinishSwitch(isOnAutoFinish(card))}
-                alt={
-                  isOnAutoFinish(card)
-                    ? isAutoFinishPaused(card)
-                      ? "Auto-finish is on and waiting for you; turn it off"
-                      : "Auto-finish is on; turn it off"
-                    : "Auto-finish is off; turn it on"
-                }
-                width={SWITCH_WIDTH}
-                height={SWITCH_HEIGHT}
-              />
+                <Svg
+                  source={autoFinishSwitch(isOnAutoFinish(card))}
+                  alt={
+                    isOnAutoFinish(card)
+                      ? isAutoFinishPaused(card)
+                        ? "Auto-finish is on and waiting for you; turn it off"
+                        : "Auto-finish is on; turn it off"
+                      : "Auto-finish is off; turn it on"
+                  }
+                  width={SWITCH_WIDTH}
+                  height={SWITCH_HEIGHT}
+                />
+              </Box>
             ) : (
               <Button
                 key={`auto-finish-${card.id}-fallback`}
