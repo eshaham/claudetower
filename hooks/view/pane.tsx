@@ -103,10 +103,6 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
   const resolved = $.ui.resolve(e);
   const { Box, Text, Button } = resolved;
   const Svg = "Svg" in resolved ? resolved.Svg : null;
-  const Client =
-    "Client" in resolved && (await areClickLayersHealthy($))
-      ? resolved.Client
-      : null;
   const [
     list,
     pendingAt,
@@ -126,6 +122,10 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     readCollapsedGroups($),
     readAutoPilot($),
   ]);
+  const Client =
+    "Client" in resolved && (await areClickLayersHealthy($, composingId !== ""))
+      ? resolved.Client
+      : null;
   const Input = "Input" in resolved ? resolved.Input : null;
   const isOnAutoPilot = (card: SessionCard) => card.id in autoPilotMarks;
   const isProcessing = (card: SessionCard) =>
@@ -429,7 +429,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
             rows={composerRows(draftText, width)}
             value={draftText}
             autoFocus
-            onInput={(text) => setDraft($, text)}
+            onInput={(text) => setDraft($, text, composerRows(text, width))}
             onSubmit={(text) => sendText($, card, text)}
           />
         </Box>

@@ -94,7 +94,7 @@ declare module "claude-code" {
       collapsedGroups: Record<string, boolean>;
       clickLayersFailedAt: number;
       composing: string;
-      draft: string;
+      draftRows: number;
       autoPilot: Record<string, number>;
     };
   }

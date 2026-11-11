@@ -75,7 +75,10 @@ export const isOpen = atom(
   { plugin: "claudetower", key: "isOpen" } as const,
   true,
 );
-export const draft = atom({ plugin: "claudetower", key: "draft" } as const, "");
+export const draftRows = atom(
+  { plugin: "claudetower", key: "draftRows" } as const,
+  0,
+);
 export const composing = atom(
   { plugin: "claudetower", key: "composing" } as const,
   "",
@@ -120,6 +123,8 @@ let boardSeenAt = 0;
 let inboxSeenAt = -1;
 let watched: string[] = [];
 let lastSeen = "";
+let draftText = "";
+let areClickLayersShown = true;
 
 async function readStores($: EngineInterface): Promise<Stores> {
   const [verdicts, tickets, prs, projects, ranking, autoPilot] =
@@ -670,7 +675,7 @@ export function readPending($: EngineInterface) {
 
 async function markPending($: EngineInterface, id: string) {
   await update($, composing, () => "");
-  await update($, draft, () => "");
+  await clearDraft($);
   await update($, pending, (current) => ({ ...current, [id]: Date.now() }));
 }
 
@@ -728,7 +733,7 @@ export function readComposing($: EngineInterface) {
 }
 
 export async function toggleCompose($: EngineInterface, id: string) {
-  await update($, draft, () => "");
+  await clearDraft($);
   const opened = await update($, composing, (current) =>
     current === id ? "" : id,
   );
@@ -738,12 +743,20 @@ export async function toggleCompose($: EngineInterface, id: string) {
     log($, `could not focus the message box: ${focused.deny}`);
 }
 
-export function readDraft($: EngineInterface) {
-  return read($, draft);
+async function clearDraft($: EngineInterface) {
+  draftText = "";
+  await update($, draftRows, () => 0);
 }
 
-export function setDraft($: EngineInterface, text: string) {
-  return update($, draft, () => text);
+export async function readDraft($: EngineInterface) {
+  await read($, draftRows);
+  return draftText;
+}
+
+export async function setDraft($: EngineInterface, text: string, rows: number) {
+  draftText = text;
+  if ((await read($, draftRows)) !== rows)
+    await update($, draftRows, () => rows);
 }
 
 export function startAction(
@@ -797,10 +810,14 @@ async function followCollapsedGroups($: EngineInterface) {
 
 const CLICK_LAYER_RETRY_MS = 2 * MINUTE_MS;
 
-export async function areClickLayersHealthy($: EngineInterface) {
-  return (
-    Date.now() - (await read($, clickLayersFailedAt)) > CLICK_LAYER_RETRY_MS
-  );
+export async function areClickLayersHealthy(
+  $: EngineInterface,
+  isComposing: boolean,
+) {
+  const isFailing =
+    Date.now() - (await read($, clickLayersFailedAt)) <= CLICK_LAYER_RETRY_MS;
+  if (isFailing || !isComposing) areClickLayersShown = !isFailing;
+  return areClickLayersShown;
 }
 
 export async function noteClickLayerFailure(
