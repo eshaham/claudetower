@@ -19,6 +19,7 @@ import {
   sendText,
   startAction,
 } from "../lib/board";
+import { isAutoPilotPaused } from "../lib/auto-pilot";
 import {
   LANES,
   badgeOf,
@@ -258,11 +259,16 @@ export async function renderPane($: EngineInterface, e: RenderInput<"Pane">) {
     const band = card.isRunning ? null : card.band;
     return (
       <Text wrap="wrap">
-        {isOnAutoPilot(card) && (
-          <Text color="claude" weight="semibold">
-            Auto-pilot{" "}
-          </Text>
-        )}
+        {isOnAutoPilot(card) &&
+          (isAutoPilotPaused(card) ? (
+            <Text dimColor weight="semibold">
+              Auto-pilot paused, needs you{" "}
+            </Text>
+          ) : (
+            <Text color="claude" weight="semibold">
+              Auto-pilot{" "}
+            </Text>
+          ))}
         {band && (
           <Text color={band.color} weight="semibold">
             {band.name}{" "}

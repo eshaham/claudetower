@@ -7,6 +7,7 @@ import {
   MAX_NUDGES,
   NUDGE_RETRY_MS,
   autoPilotStepOf,
+  isAutoPilotPaused,
   nudgeAfter,
 } from "../hooks/lib/auto-pilot";
 import { classify } from "../hooks/lib/classify";
@@ -173,5 +174,18 @@ describe("auto-pilot cards", () => {
     const card = cardOf({ isAutoPilot: false });
     assert.equal(card.lane, "answer");
     assert.equal(card.isFinishing, true);
+  });
+});
+
+describe("auto-pilot paused", () => {
+  it("is paused when the session cannot finish alone", () => {
+    const card = cardOf({ verdict: verdictOf({ canFinishAlone: false }) });
+    assert.equal(isAutoPilotPaused(card), true);
+    assert.equal(autoPilotStepOf(card, undefined, NOW), "wait");
+  });
+
+  it("is not paused when it can finish alone or has no verdict yet", () => {
+    assert.equal(isAutoPilotPaused(cardOf()), false);
+    assert.equal(isAutoPilotPaused(cardOf({ verdict: null })), false);
   });
 });
