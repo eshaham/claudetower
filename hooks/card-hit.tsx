@@ -4,60 +4,80 @@ import type { CardHitMessage } from "../types";
 
 type Props = {
   id: string;
-  canToggle: boolean;
   canCompose: boolean;
   canAutoPilot?: boolean;
   isGroup?: boolean;
 };
 
-const TOGGLE_COLUMNS = 3;
+type State = Props & { isHintShown: boolean };
+
 const COMPOSE_COLUMNS = 4;
 const AUTO_PILOT_COLUMNS = 5;
 const CORNER_ROWS = 2;
+const AUTO_PILOT_HINT = "Auto Pilot";
 
-const CardHit: ClientModule<Props, Props> = (props, surface) => {
-  const { Box } = surface.elements;
+const zoneOf = (
+  current: Props,
+  columns: number,
+  x: number,
+  y: number,
+): CardHitMessage["kind"] => {
+  if (current.isGroup) return "group";
+  const fromRight = columns - x;
+  if (y >= CORNER_ROWS) return "open";
+  if (current.canCompose && fromRight <= COMPOSE_COLUMNS) return "compose";
+  if (
+    current.canAutoPilot &&
+    fromRight > COMPOSE_COLUMNS &&
+    fromRight <= COMPOSE_COLUMNS + AUTO_PILOT_COLUMNS
+  )
+    return "auto-pilot";
+  return "open";
+};
+
+const CardHit: ClientModule<Props, State> = (props, surface) => {
+  const { Box, Text } = surface.elements;
   const previous = surface.state;
 
   if (previous === undefined) {
     let isPressed = false;
     surface.onPointer((event) => {
+      const current = surface.state ?? { ...props, isHintShown: false };
+      const zone = zoneOf(current, surface.columns, event.x, event.y);
+      const isHintShown = event.type !== "leave" && zone === "auto-pilot";
+      if (isHintShown !== current.isHintShown)
+        surface.setState({ ...current, isHintShown });
       if (event.button !== "left") return;
       if (event.type === "down") isPressed = true;
       if (event.type !== "up" || !isPressed) return;
       isPressed = false;
-      const current = surface.state ?? props;
-      const fromRight = surface.columns - event.x;
-      const inCorner = event.y < CORNER_ROWS;
-      const kind: CardHitMessage["kind"] = current.isGroup
-        ? "group"
-        : inCorner && current.canToggle && fromRight <= TOGGLE_COLUMNS
-          ? "toggle"
-          : inCorner &&
-              current.canCompose &&
-              fromRight <= TOGGLE_COLUMNS + COMPOSE_COLUMNS
-            ? "compose"
-            : inCorner &&
-                current.canAutoPilot &&
-                fromRight > TOGGLE_COLUMNS + COMPOSE_COLUMNS &&
-                fromRight <=
-                  TOGGLE_COLUMNS + COMPOSE_COLUMNS + AUTO_PILOT_COLUMNS
-              ? "auto-pilot"
-              : "open";
-      const message: CardHitMessage = { kind, id: current.id };
+      const message: CardHitMessage = { kind: zone, id: current.id };
       surface.post(message);
     });
   }
   if (
     previous?.id !== props.id ||
-    previous.canToggle !== props.canToggle ||
     previous.canCompose !== props.canCompose ||
     previous.canAutoPilot !== props.canAutoPilot ||
     previous.isGroup !== props.isGroup
   )
-    surface.setState(props);
+    surface.setState({ ...props, isHintShown: previous?.isHintShown ?? false });
 
-  return <Box width="100%" height="100%" />;
+  return (
+    <Box width="100%" height="100%">
+      {previous?.isHintShown && (
+        <Box
+          position="absolute"
+          top={1}
+          right={COMPOSE_COLUMNS}
+          paddingX={1}
+          backgroundColor="text"
+        >
+          <Text color="inverseText">{AUTO_PILOT_HINT}</Text>
+        </Box>
+      )}
+    </Box>
+  );
 };
 
 export default CardHit;

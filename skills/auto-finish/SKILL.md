@@ -1,5 +1,5 @@
 ---
-name: auto-pilot
+name: auto-finish
 description: Take a Claude Code session the rest of the way on its own, to a merged PR and an archived session, stopping only for what the user must decide or do. Use when a message starts with "Auto-pilot (claudetower)", or when the user asks this session to finish, merge and archive by itself.
 ---
 

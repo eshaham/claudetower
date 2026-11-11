@@ -21,7 +21,6 @@ import {
   toggleAutoPilot,
   toggleCompose,
   toggleGroup,
-  togglePreview,
 } from "./lib/board";
 import {
   FOLLOW_TICK_MS,
@@ -73,17 +72,6 @@ export const register: Register = (on, options) => {
     await followOtherSessions($).catch((error: unknown) =>
       log($, `could not open the panel: ${String(error)}`),
     );
-    await $.command.register({
-      name: "tower",
-      description: "Open the claudetower session board",
-    });
-    await $.command.register({
-      name: "auto-pilot",
-      description:
-        "Let this session finish on its own: merge its PR and archive when nothing needs you",
-      argumentHint: "[on|off]",
-    });
-    await $.tool.register(RANKING_TOOL_SPEC);
     void discoverHost($)
       .then(() => {
         $.clock.every(POLL_MS, () =>
@@ -107,6 +95,28 @@ export const register: Register = (on, options) => {
         return poll($);
       })
       .catch((error: unknown) => log($, `could not start: ${String(error)}`));
+
+    await Promise.all(
+      [
+        () =>
+          $.command.register({
+            name: "tower",
+            description: "Open the claudetower session board",
+          }),
+        () =>
+          $.command.register({
+            name: "auto-pilot",
+            description:
+              "Let this session finish on its own: merge its PR and archive when nothing needs you",
+            argumentHint: "[on|off]",
+          }),
+        () => $.tool.register(RANKING_TOOL_SPEC),
+      ].map((registration) =>
+        registration().catch((error: unknown) =>
+          log($, `could not register a command or tool: ${String(error)}`),
+        ),
+      ),
+    );
 
     return next(e);
   });
@@ -142,13 +152,11 @@ export const register: Register = (on, options) => {
     const handled =
       message.kind === "open"
         ? openSession($, message.id)
-        : message.kind === "toggle"
-          ? togglePreview($, message.id)
-          : message.kind === "group"
-            ? toggleGroup($, message.id)
-            : message.kind === "auto-pilot"
-              ? toggleAutoPilot($, message.id)
-              : toggleCompose($, message.id);
+        : message.kind === "group"
+          ? toggleGroup($, message.id)
+          : message.kind === "auto-pilot"
+            ? toggleAutoPilot($, message.id)
+            : toggleCompose($, message.id);
     await handled.catch((error: unknown) =>
       log($, `could not handle a ${message.kind} click: ${String(error)}`),
     );

@@ -15,7 +15,7 @@ Each stopped session gets one card with:
 - What it's waiting for, labeled **Answer**, **Act**, **Review**, **Follow up**, **In flight** or **Wrap up**, with an **Urgent** or **High** label when the task is serious, and labels such as `production` or `ci` when they apply.
 - The options the session offered you at the end (its question and buttons), so you can see the choice without opening it.
 - An **Archive** button once the session is finished: no open PR, no uncommitted files, and nothing left for you. When your settings allow `mcp__ccd_session_mgmt__archive_session`, it archives the session at once; otherwise it asks that session to archive itself, so the request goes through the session's own permission checks.
-- A chevron that expands your last message and Claude's reply.
+- A switch next to the title that puts the session on auto-pilot (hover it for the hint).
 
 The session you're in sits in a **This session** section at the top. Sessions in their last mile (ready to archive, a PR ready to merge, a last yes/no) gather in a **Finish** section, oldest first, so nearly-done work gets closed. Widen the panel past 100 columns and it switches to a board with one lane per label.
 
@@ -27,7 +27,7 @@ Put a session on auto-pilot and it finishes on its own: it completes the work, o
 
 Turn it on with the switch next to a card's title, or type `/auto-pilot` in the session itself (`/auto-pilot on`, `/auto-pilot off`, or bare to toggle). The card then shows **Auto-pilot**.
 
-Each time an auto-pilot session stops, its reading also says whether it could finish alone: everything left is work it can do with a standing go-ahead to commit, push, merge its own PR and archive, such as fixing checks or waiting for them. If so, the board moves it to **In flight** and sends it a message that hands it the go-ahead and points it to the `claudetower:auto-pilot` skill, which comes with the plugin. If it needs a real decision, a credential, a human reviewer, or a step riskier than merging (a deploy, a migration, an infrastructure apply), it stays in its usual lane until you answer. Once it is finished, the board archives it.
+Each time an auto-pilot session stops, its reading also says whether it could finish alone: everything left is work it can do with a standing go-ahead to commit, push, merge its own PR and archive, such as fixing checks or waiting for them. If so, the board moves it to **In flight** and sends it a message that hands it the go-ahead and points it to the `claudetower:auto-finish` skill, which comes with the plugin. If it needs a real decision, a credential, a human reviewer, or a step riskier than merging (a deploy, a migration, an infrastructure apply), it stays in its usual lane until you answer. Once it is finished, the board archives it.
 
 The message counts as your consent to merge that session's PR. A session gets at most one message per turn and 12 in all, and none while it only waits on checks after its first, since Auto-fix wakes it from there; a message nobody picks up (the session isn't running) is tried again after 10 minutes.
 

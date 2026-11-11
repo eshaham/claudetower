@@ -49,9 +49,6 @@ export type SessionCard = {
   ticketPriority: number;
   prs: PrBadge[];
   uncommittedFiles: number;
-  lastAsk: string;
-  lastAskAgoMs: number;
-  lastReply: string;
   question: string;
   options: SessionAction[];
   isRunning: boolean;
@@ -69,7 +66,7 @@ export type SessionCard = {
 };
 
 export type CardHitMessage = {
-  kind: "open" | "toggle" | "compose" | "group" | "auto-pilot";
+  kind: "open" | "compose" | "group" | "auto-pilot";
   id: string;
 };
 
@@ -92,7 +89,6 @@ declare module "claude-code" {
     claudetower: {
       cards: SessionCard[];
       isOpen: boolean;
-      previewed: string;
       pending: Record<string, number>;
       needsSetup: boolean;
       collapsedGroups: Record<string, boolean>;

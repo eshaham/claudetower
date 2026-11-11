@@ -28,7 +28,6 @@ export const TAIL_BYTES = 1500000;
 export const FIRST_TAIL_BYTES = 256000;
 export const GIT_STATUS_TTL_MS = 5 * MINUTE_MS;
 export const LAST_TEXT_CHARS = 6000;
-export const PREVIEW_REPLY_CHARS = 2500;
 export const PROMPT_CHARS = 800;
 
 export const READS_PER_POLL = 6;

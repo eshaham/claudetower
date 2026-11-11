@@ -14,7 +14,6 @@ import {
   PANE,
   PANE_COLUMNS,
   PENDING_MS,
-  PREVIEW_REPLY_CHARS,
   READ_CONCURRENCY,
   READS_PER_POLL,
   STORE_KEYS,
@@ -76,10 +75,6 @@ export const isOpen = atom(
   { plugin: "claudetower", key: "isOpen" } as const,
   true,
 );
-export const previewed = atom(
-  { plugin: "claudetower", key: "previewed" } as const,
-  "",
-);
 export const draft = atom({ plugin: "claudetower", key: "draft" } as const, "");
 export const composing = atom(
   { plugin: "claudetower", key: "composing" } as const,
@@ -125,13 +120,6 @@ let boardSeenAt = 0;
 let inboxSeenAt = -1;
 let watched: string[] = [];
 let lastSeen = "";
-
-const fromParagraphStart = (text: string, limit: number) => {
-  if (text.length <= limit) return text;
-  const cut = text.slice(-limit);
-  const paragraph = cut.indexOf("\n\n");
-  return paragraph >= 0 ? cut.slice(paragraph + 2) : cut;
-};
 
 async function readStores($: EngineInterface): Promise<Stores> {
   const [verdicts, tickets, prs, projects, ranking, autoPilot] =
@@ -193,9 +181,6 @@ const cardOf = (one: Enriched, now: number, stores: Stores): SessionCard => {
       ticketPriority: info?.isOpen ? info.priority : 0,
       prs: prBadgesOf(s.prs, stores.prs),
       uncommittedFiles: end.uncommittedFiles,
-      lastAsk: end.prompt,
-      lastAskAgoMs: end.promptAt ? now - end.promptAt : 0,
-      lastReply: fromParagraphStart(end.lastText, PREVIEW_REPLY_CHARS),
       question: end.question,
       options: end.options,
       isRunning: !end.isStopped,
@@ -610,10 +595,6 @@ async function driveAutoPilot($: EngineInterface, built: SessionCard[]) {
   });
 }
 
-export function togglePreview($: EngineInterface, id: string) {
-  return update($, previewed, (current) => (current === id ? "" : id));
-}
-
 export async function setPaneOpen($: EngineInterface, value: boolean) {
   await update($, isOpen, () => value);
   await $.store.set(instanceKey(STORE_KEYS.isOpen), value);
@@ -669,10 +650,6 @@ export async function poll($: EngineInterface) {
 
 export function readCards($: EngineInterface) {
   return read($, cards);
-}
-
-export function readPreviewed($: EngineInterface) {
-  return read($, previewed);
 }
 
 export function isPaneOpen($: EngineInterface) {

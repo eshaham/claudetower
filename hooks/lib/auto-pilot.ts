@@ -20,7 +20,7 @@ export const NUDGE_RETRY_MS = 10 * MINUTE_MS;
 export const AUTO_PILOT_ACTION: SessionAction = {
   label: "Auto-pilot",
   message:
-    "Auto-pilot (claudetower): take this session the rest of the way on your own with the claudetower:auto-pilot skill: finish and verify the work, open or update the PR, then turn on Auto-fix, auto-merge and archive-on-merge for it. I consent to merging this session's PR once its checks pass. Stop and ask me only for what you cannot decide or do yourself.",
+    "Auto-pilot (claudetower): take this session the rest of the way on your own with the claudetower:auto-finish skill: finish and verify the work, open or update the PR, then turn on Auto-fix, auto-merge and archive-on-merge for it. I consent to merging this session's PR once its checks pass. Stop and ask me only for what you cannot decide or do yourself.",
 };
 
 export const isAutoPiloting = (
