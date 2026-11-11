@@ -41,6 +41,7 @@ import {
   refreshPrs,
   refreshTickets,
 } from "./enrich";
+import { answerOpenQuestion } from "./open-question";
 import type { ProjectProfile } from "./project";
 import {
   claim,
@@ -937,6 +938,7 @@ export async function takeRelayedMessage($: EngineInterface, text: string) {
     [host.selfCliId]: mine.filter((relay) => relay !== found),
   });
   if (found.text === AUTO_FINISH_ACTION.message) await markAutoFinishStarted($);
+  if (answerOpenQuestion(found.text)) return true;
   void $.prompt
     .submit({ text: found.text, asUser: true })
     .catch((error: unknown) =>
@@ -957,6 +959,7 @@ export async function checkInbox($: EngineInterface) {
   await removeFile($, path);
   const { text, at } = JSON.parse(raw) as { text?: string; at?: number };
   if (!text || Date.now() - (at ?? 0) > ANSWER_PICKUP_MS) return;
+  if (answerOpenQuestion(text)) return;
   await $.prompt.submit({ text, asUser: true });
 }
 
