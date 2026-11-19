@@ -811,9 +811,15 @@ async function driveAutoFinish($: EngineInterface, built: SessionCard[]) {
   });
 }
 
+async function paneClosedKey($: EngineInterface) {
+  return `${STORE_KEYS.paneClosed}/${await $.session.id()}`;
+}
+
 export async function setPaneOpen($: EngineInterface, value: boolean) {
   await update($, isOpen, () => value);
-  await $.store.set(instanceKey(STORE_KEYS.isOpen), value);
+  const key = await paneClosedKey($);
+  if (value) await $.store.delete(key);
+  else await $.store.set(key, true);
 }
 
 export async function openPane($: EngineInterface) {
@@ -847,8 +853,7 @@ export async function followOtherSessions($: EngineInterface) {
   if (isSettingUp) {
     await showSetupBand($, isUp);
   } else {
-    const wantsOpen =
-      (await $.store.get(instanceKey(STORE_KEYS.isOpen))) !== false;
+    const wantsOpen = (await $.store.get(await paneClosedKey($))) !== true;
     if (wantsOpen && !isUp && (await $.session.surfaces()).length > 0)
       await openPane($);
     if (!wantsOpen && isUp) await $.ui.close({ id: PANE });
