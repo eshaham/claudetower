@@ -24,6 +24,7 @@ export const LEADER_VERSION = 5;
 export const LOAD_DEBOUNCE_MS = SECOND_MS;
 export const FOLLOW_TICK_MS = 2 * SECOND_MS;
 export const PENDING_MS = 2 * MINUTE_MS;
+export const INSTANCE_SEARCH_RETRY_MS = 5 * MINUTE_MS;
 
 export const TAIL_BYTES = 1500000;
 export const FIRST_TAIL_BYTES = 256000;
@@ -177,10 +178,18 @@ async function instanceOfApp($: EngineInterface) {
   return name && (await $.fs.exists(sessionsRootOf(name))) ? name : "";
 }
 
-export async function findInstance($: EngineInterface) {
+let lastSearchAt = Number.NEGATIVE_INFINITY;
+
+export const resetInstanceSearch = () => {
+  lastSearchAt = Number.NEGATIVE_INFINITY;
+};
+
+export async function findInstance($: EngineInterface, now = Date.now()) {
   if (host.instance) return host.instance;
   host.instance = await instanceOfApp($);
   if (host.instance || !host.selfCliId) return host.instance;
+  if (now - lastSearchAt < INSTANCE_SEARCH_RETRY_MS) return "";
+  lastSearchAt = now;
   const candidates = (await $.fs.list(`${host.home}/${APP_SUPPORT}`))
     .filter((entry) => entry.kind === "dir")
     .map((entry) => entry.name);
