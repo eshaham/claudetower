@@ -51,7 +51,7 @@ export const STORE_KEYS = {
   tickets: "tickets-v2",
   prs: "prs",
   projects: "projects-v1",
-  isOpen: "isOpen",
+  paneClosed: "pane-closed",
   collapsedGroups: "collapsed-groups",
   autoFinish: "auto-pilot",
   nudges: "auto-pilot-nudges",
