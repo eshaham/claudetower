@@ -25,6 +25,7 @@ export const LOAD_DEBOUNCE_MS = SECOND_MS;
 export const FOLLOW_TICK_MS = 2 * SECOND_MS;
 export const PENDING_MS = 2 * MINUTE_MS;
 export const INSTANCE_SEARCH_RETRY_MS = 5 * MINUTE_MS;
+const DESKTOP_ENTRYPOINT = "claude-desktop";
 
 export const TAIL_BYTES = 1500000;
 export const FIRST_TAIL_BYTES = 256000;
@@ -84,6 +85,7 @@ export const host: {
   selfCliId: string;
   instance: string;
   appPid: string;
+  isDesktop: boolean;
   tools: ToolSummary[];
   ticketPrefixOverride: string[];
 } = {
@@ -92,6 +94,7 @@ export const host: {
   selfCliId: "",
   instance: "",
   appPid: "",
+  isDesktop: false,
   tools: [],
   ticketPrefixOverride: [],
 };
@@ -131,8 +134,9 @@ async function findGh($: EngineInterface) {
 }
 
 export async function discoverHost($: EngineInterface) {
-  const [home, gh, selfCliId, appPid] = await Promise.all([
+  const [home, entrypoint, gh, selfCliId, appPid] = await Promise.all([
     $.process.run(["/usr/bin/printenv", "HOME"]),
+    $.process.run(["/usr/bin/printenv", "CLAUDE_CODE_ENTRYPOINT"]),
     findGh($),
     $.session.id(),
     findAppPid($),
@@ -141,6 +145,7 @@ export async function discoverHost($: EngineInterface) {
   host.gh = gh;
   host.selfCliId = selfCliId;
   host.appPid = appPid;
+  host.isDesktop = entrypoint.stdout.trim() === DESKTOP_ENTRYPOINT;
   await findInstance($);
   if (!host.gh) log($, "gh not found; PR details are off");
 }
@@ -187,7 +192,9 @@ export const resetInstanceSearch = () => {
 export async function findInstance($: EngineInterface, now = Date.now()) {
   if (host.instance) return host.instance;
   host.instance = await instanceOfApp($);
-  if (host.instance || !host.selfCliId) return host.instance;
+  if (host.instance || !host.selfCliId || !host.isDesktop) {
+    return host.instance;
+  }
   if (now - lastSearchAt < INSTANCE_SEARCH_RETRY_MS) return "";
   lastSearchAt = now;
   const candidates = (await $.fs.list(`${host.home}/${APP_SUPPORT}`))

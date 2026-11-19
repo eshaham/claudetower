@@ -38,6 +38,7 @@ describe("finding the Desktop instance by session id", () => {
       selfCliId: "self",
       instance: "",
       appPid: "",
+      isDesktop: true,
     });
   });
 
@@ -56,6 +57,14 @@ describe("finding the Desktop instance by session id", () => {
     output = `${ROOT}/a/b/local_1.json\n`;
     assert.equal(await findInstance($, INSTANCE_SEARCH_RETRY_MS), "Claude");
     assert.equal(greps.length, 2);
+  });
+
+  it("never searches the session files outside the Desktop app", async () => {
+    host.isDesktop = false;
+    const { $, greps } = engineWith(() => `${ROOT}/a/b/local_1.json\n`);
+    assert.equal(await findInstance($, 0), "");
+    assert.equal(await findInstance($, INSTANCE_SEARCH_RETRY_MS), "");
+    assert.equal(greps.length, 0);
   });
 
   it("keeps a found instance without searching again", async () => {
